@@ -308,6 +308,27 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
   const isDoctorShifted = liveDoctor && liveDoctor.roomNumber !== 'Room 204' && currentPatient?.department === 'Orthopedics';
   const isDoctorOnBreak = liveDoctor?.status === 'on_break';
 
+  // Handle save profile
+  const handleSaveProfile = (updatedProfile: PatientUser) => {
+    if (onUpdateUserProfile) {
+      onUpdateUserProfile(updatedProfile);
+    }
+  };
+
+  // If patient is not signed in, show hospital Sign In / Sign Up gateway
+  if (!currentUser) {
+    return (
+      <div className="max-w-3xl mx-auto w-full px-2.5 sm:px-4 py-3 sm:py-6 box-border animate-in fade-in duration-300">
+        <PatientAuth
+          onLoginSuccess={(u) => {
+            if (onUserLogin) onUserLogin(u);
+          }}
+          onShowToast={notify}
+        />
+      </div>
+    );
+  }
+
   // MAIN CONTAINER CONTENT
   const containerContent = (
     <div className="max-w-4xl mx-auto w-full px-2.5 sm:px-4 py-3 sm:py-6 space-y-4 sm:space-y-6 box-border">
@@ -430,6 +451,19 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               {/* Option A: First-Time Patient / General Medicine */}
               <div
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setPatientType('new');
+                    const genDoc = doctors.find((d) => d.department === 'General Medicine') || doctors[0];
+                    setSelectedDoctorId(genDoc.id);
+                    setSelectedSymptoms(['Persistent High Fever']);
+                    setCurrentStep('triage');
+                    playHospitalChime();
+                  }
+                }}
                 onClick={() => {
                   setPatientType('new');
                   const genDoc = doctors.find((d) => d.department === 'General Medicine') || doctors[0];
@@ -438,10 +472,10 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                   setCurrentStep('triage');
                   playHospitalChime();
                 }}
-                className={`p-5 rounded-2xl transition-all cursor-pointer text-left group ${
+                className={`p-5 rounded-2xl transition-all cursor-pointer text-left group select-none ${
                   patientType === 'new'
-                    ? 'border-2 border-sky-500 bg-sky-50/50 shadow-md ring-4 ring-sky-500/10'
-                    : 'border border-slate-200 bg-white hover:border-sky-300 hover:shadow-md'
+                    ? 'border-2 border-sky-500 bg-sky-50/50 shadow-md ring-4 ring-sky-500/10 active:scale-[0.99]'
+                    : 'border border-slate-200 bg-white hover:border-sky-300 hover:shadow-md hover:bg-slate-50/60 active:scale-[0.99]'
                 }`}
               >
                 <div className="flex items-center justify-between mb-3">
@@ -455,10 +489,10 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                     <i className="fa-solid fa-user-plus"></i>
                   </span>
                   <span
-                    className={`px-3 py-1 text-xs font-semibold rounded-full border ${
+                    className={`px-3 py-1 text-xs font-semibold rounded-full border transition ${
                       patientType === 'new'
                         ? 'bg-sky-100 text-sky-800 border-sky-300'
-                        : 'bg-slate-100 text-slate-700 border-slate-200'
+                        : 'bg-slate-100 text-slate-700 border-slate-200 group-hover:border-sky-300 group-hover:bg-sky-50'
                     }`}
                   >
                     {patientType === 'new' ? 'Active Choice' : 'Option A'}
@@ -482,6 +516,18 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
 
               {/* Option B: Follow-up Patient */}
               <div
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setPatientType('followup');
+                    setSelectedDoctorId(doctors[0]?.id || 'doc-1');
+                    setSelectedSymptoms(['Joint / Knee Pain']);
+                    setCurrentStep('triage');
+                    playHospitalChime();
+                  }
+                }}
                 onClick={() => {
                   setPatientType('followup');
                   setSelectedDoctorId(doctors[0]?.id || 'doc-1');
@@ -489,10 +535,10 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                   setCurrentStep('triage');
                   playHospitalChime();
                 }}
-                className={`p-5 rounded-2xl transition-all cursor-pointer text-left group ${
+                className={`p-5 rounded-2xl transition-all cursor-pointer text-left group select-none ${
                   patientType === 'followup'
-                    ? 'border-2 border-sky-500 bg-sky-50/50 shadow-md ring-4 ring-sky-500/10'
-                    : 'border border-slate-200 bg-white hover:border-sky-300 hover:shadow-md'
+                    ? 'border-2 border-sky-500 bg-sky-50/50 shadow-md ring-4 ring-sky-500/10 active:scale-[0.99]'
+                    : 'border border-slate-200 bg-white hover:border-sky-300 hover:shadow-md hover:bg-slate-50/60 active:scale-[0.99]'
                 }`}
               >
                 <div className="flex items-center justify-between mb-3">
@@ -506,10 +552,10 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                     <i className="fa-solid fa-clipboard-user"></i>
                   </span>
                   <span
-                    className={`px-3 py-1 text-xs font-semibold rounded-full border ${
+                    className={`px-3 py-1 text-xs font-semibold rounded-full border transition ${
                       patientType === 'followup'
                         ? 'bg-sky-100 text-sky-800 border-sky-300'
-                        : 'bg-slate-100 text-slate-700 border-slate-200'
+                        : 'bg-slate-100 text-slate-700 border-slate-200 group-hover:border-sky-300 group-hover:bg-sky-50'
                     }`}
                   >
                     {patientType === 'followup' ? 'Active Choice' : 'Option B'}
@@ -1379,24 +1425,37 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
               </div>
             </div>
 
-            <div className="pt-2 flex items-center justify-between gap-3">
+            <div className="pt-2 flex flex-wrap items-center justify-between gap-2.5">
               <button
                 type="button"
                 onClick={() => {
                   setShowProfileModal(false);
-                  if (onUserLogout) onUserLogout();
+                  setShowEditProfileModal(true);
                 }}
-                className="px-4 py-2.5 rounded-xl bg-rose-50 text-rose-700 font-semibold text-xs cursor-pointer hover:bg-rose-100 transition"
+                className="px-4 py-2.5 rounded-xl bg-sky-50 text-sky-700 font-bold text-xs cursor-pointer hover:bg-sky-100 transition flex items-center gap-1.5 border border-sky-200"
               >
-                Switch Account
+                <i className="fa-solid fa-user-pen text-sky-600"></i>
+                <span>Edit Personal Details</span>
               </button>
-              <button
-                type="button"
-                onClick={() => setShowProfileModal(false)}
-                className="px-6 py-2.5 rounded-xl bg-sky-500 text-white font-semibold text-xs cursor-pointer hover:bg-sky-600 transition shadow-xs"
-              >
-                Close
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowProfileModal(false);
+                    if (onUserLogout) onUserLogout();
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-rose-50 text-rose-700 font-semibold text-xs cursor-pointer hover:bg-rose-100 transition border border-rose-200"
+                >
+                  Sign Out
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowProfileModal(false)}
+                  className="px-5 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold text-xs cursor-pointer transition shadow-xs"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1552,6 +1611,15 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
         onLoginSuccess={handleAuthSuccess}
+        onShowToast={notify}
+      />
+
+      {/* EDIT PATIENT PROFILE MODAL */}
+      <EditProfileModal
+        isOpen={showEditProfileModal}
+        onClose={() => setShowEditProfileModal(false)}
+        currentUser={currentUser}
+        onSaveProfile={handleSaveProfile}
         onShowToast={notify}
       />
     </div>

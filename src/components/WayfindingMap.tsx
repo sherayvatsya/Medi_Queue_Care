@@ -25,6 +25,7 @@ export const WayfindingMap: React.FC<WayfindingMapProps> = ({
   const [activeStep, setActiveStep] = useState<number>(1);
   const [activeViewMode, setActiveViewMode] = useState<'indoor' | 'gmap' | 'turnByTurn'>('indoor');
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
+  const [selectedLanguage, setSelectedLanguage] = useState<string>('en-IN');
 
   const routeKey = isEmergency ? 'ER_CASUALTY' : (WAYFINDING_ROUTES[roomNumber] ? roomNumber : 'Room 204');
   const steps: WayfindingStep[] = WAYFINDING_ROUTES[routeKey] || WAYFINDING_ROUTES['Room 204'];
@@ -41,22 +42,69 @@ export const WayfindingMap: React.FC<WayfindingMapProps> = ({
 
   const dest = getDestinationCoords();
 
+  const handleStopVoice = () => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    setIsSpeaking(false);
+    if (onShowToast) {
+      onShowToast('Voice Stopped', 'Voice guidance playback cancelled.', 'info');
+    }
+  };
+
   const handleSpeakDirections = () => {
+    if (isSpeaking) {
+      handleStopVoice();
+      return;
+    }
+
     playHospitalChime();
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       const currentStepObj = steps.find((s) => s.stepNumber === activeStep) || steps[0];
-      const textToSpeak = `Step ${currentStepObj.stepNumber}: ${currentStepObj.instruction}. Landmark: ${currentStepObj.landmark}. Destination is ${roomNumber}, ${doctorName}.`;
+      
+      let textToSpeak = `Step ${currentStepObj.stepNumber}: ${currentStepObj.instruction}. Landmark: ${currentStepObj.landmark}. Destination is ${roomNumber}, ${doctorName}.`;
+
+      // Multilingual speech translations for common Indian & international languages
+      if (selectedLanguage.startsWith('hi')) {
+        textToSpeak = `चरण ${currentStepObj.stepNumber}: ${currentStepObj.instruction}। निकटतम लैंडमार्क: ${currentStepObj.landmark}। आपका गंतव्य ${roomNumber}, ${doctorName} है।`;
+      } else if (selectedLanguage.startsWith('bn')) {
+        textToSpeak = `ধাপ ${currentStepObj.stepNumber}: ${currentStepObj.instruction}। ল্যান্ডমার্ক: ${currentStepObj.landmark}। গন্তব্য ${roomNumber}, ${doctorName}।`;
+      } else if (selectedLanguage.startsWith('ta')) {
+        textToSpeak = `படி ${currentStepObj.stepNumber}: ${currentStepObj.instruction}। அடையாளம்: ${currentStepObj.landmark}। இலக்கு ${roomNumber}, ${doctorName}।`;
+      } else if (selectedLanguage.startsWith('te')) {
+        textToSpeak = `దశ ${currentStepObj.stepNumber}: ${currentStepObj.instruction}. ల్యాండ్‌మార్క్: ${currentStepObj.landmark}. గమ్యం ${roomNumber}, ${doctorName}.`;
+      } else if (selectedLanguage.startsWith('mr')) {
+        textToSpeak = `पायरी ${currentStepObj.stepNumber}: ${currentStepObj.instruction}। लँडमार्क: ${currentStepObj.landmark}। ठिकाण ${roomNumber}, ${doctorName}।`;
+      } else if (selectedLanguage.startsWith('gu')) {
+        textToSpeak = `પગલું ${currentStepObj.stepNumber}: ${currentStepObj.instruction}। લેન્ડમાર્ક: ${currentStepObj.landmark}। ગંતવ્ય ${roomNumber}, ${doctorName}।`;
+      } else if (selectedLanguage.startsWith('es')) {
+        textToSpeak = `Paso ${currentStepObj.stepNumber}: ${currentStepObj.instruction}. Punto de referencia: ${currentStepObj.landmark}. Destino es ${roomNumber}, ${doctorName}.`;
+      } else if (selectedLanguage.startsWith('ar')) {
+        textToSpeak = `الخطوة ${currentStepObj.stepNumber}: ${currentStepObj.instruction}. المعلم: ${currentStepObj.landmark}. الوجهة هي ${roomNumber}، ${doctorName}.`;
+      }
+
       const utterance = new SpeechSynthesisUtterance(textToSpeak);
-      utterance.rate = 1.0;
+      utterance.lang = selectedLanguage;
+      utterance.rate = 0.95;
       utterance.pitch = 1.0;
       utterance.onstart = () => setIsSpeaking(true);
       utterance.onend = () => setIsSpeaking(false);
       utterance.onerror = () => setIsSpeaking(false);
+
+      // Try selecting available system voices for chosen language
+      const voices = window.speechSynthesis.getVoices();
+      if (voices && voices.length > 0) {
+        const matchingVoice = voices.find((v) => v.lang.toLowerCase().startsWith(selectedLanguage.substring(0, 2).toLowerCase()));
+        if (matchingVoice) {
+          utterance.voice = matchingVoice;
+        }
+      }
+
       window.speechSynthesis.speak(utterance);
 
       if (onShowToast) {
-        onShowToast('Voice Guidance', textToSpeak, 'info');
+        onShowToast('Voice Guidance Active', textToSpeak, 'info');
       }
     }
   };
@@ -91,19 +139,54 @@ export const WayfindingMap: React.FC<WayfindingMapProps> = ({
 
         {/* View toggle & Voice button */}
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 w-full sm:w-auto justify-between sm:justify-end">
-          <button
-            type="button"
-            onClick={handleSpeakDirections}
-            className={`px-2 sm:px-2.5 py-1 rounded-lg text-[11px] sm:text-xs font-semibold flex items-center gap-1.5 border transition cursor-pointer shrink-0 ${
-              isSpeaking
-                ? 'bg-[#0ea5e9] text-white border-[#0ea5e9] animate-pulse'
-                : 'bg-[#f8fafc] hover:bg-[#f1f5f9] text-[#334155] border-[#e2e8f0]'
-            }`}
-            title="Read directions aloud"
-          >
-            <i className="fa-solid fa-volume-high text-[#0ea5e9]"></i>
-            <span>{isSpeaking ? 'Speaking...' : 'Voice'}</span>
-          </button>
+          {/* Language Selector for Voice */}
+          <div className="flex items-center gap-1 bg-[#f8fafc] px-2 py-1 rounded-lg border border-[#e2e8f0]">
+            <i className="fa-solid fa-language text-[#0ea5e9] text-xs"></i>
+            <select
+              value={selectedLanguage}
+              onChange={(e) => {
+                setSelectedLanguage(e.target.value);
+                if (isSpeaking) {
+                  handleStopVoice();
+                }
+              }}
+              className="text-[11px] font-semibold text-[#334155] bg-transparent border-0 focus:outline-hidden cursor-pointer"
+              title="Select Voice Guidance Language"
+            >
+              <option value="en-IN">English (Indian)</option>
+              <option value="hi-IN">हिन्दी (Hindi)</option>
+              <option value="bn-IN">বাংলা (Bengali)</option>
+              <option value="ta-IN">தமிழ் (Tamil)</option>
+              <option value="te-IN">తెలుగు (Telugu)</option>
+              <option value="mr-IN">मराठी (Marathi)</option>
+              <option value="gu-IN">ગુજરાતી (Gujarati)</option>
+              <option value="es-ES">Español</option>
+              <option value="ar-SA">العربية (Arabic)</option>
+            </select>
+          </div>
+
+          {/* Voice Speak / Stop Button */}
+          {!isSpeaking ? (
+            <button
+              type="button"
+              onClick={handleSpeakDirections}
+              className="px-2.5 py-1 rounded-lg text-[11px] sm:text-xs font-semibold flex items-center gap-1.5 border bg-[#f8fafc] hover:bg-[#f1f5f9] text-[#334155] border-[#e2e8f0] transition cursor-pointer shrink-0"
+              title="Read directions aloud"
+            >
+              <i className="fa-solid fa-volume-high text-[#0ea5e9]"></i>
+              <span>Voice</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleStopVoice}
+              className="px-2.5 py-1 rounded-lg text-[11px] sm:text-xs font-bold flex items-center gap-1.5 border bg-[#fee2e2] hover:bg-[#fecaca] text-[#dc2626] border-[#fca5a5] transition cursor-pointer shrink-0 animate-pulse"
+              title="Stop voice immediately"
+            >
+              <i className="fa-solid fa-circle-stop text-[#dc2626]"></i>
+              <span>Stop Voice</span>
+            </button>
+          )}
 
           <div className="flex items-center bg-[#f8fafc] p-1 rounded-lg border border-[#e2e8f0] text-[11px] sm:text-xs overflow-x-auto max-w-full">
             <button

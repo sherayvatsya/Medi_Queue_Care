@@ -154,24 +154,38 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="relative" ref={devMenuRef}>
             <button
               type="button"
-              onClick={() => setShowDevMenu(!showDevMenu)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all shadow-sm cursor-pointer ${
+              id="dev-tools-toggle-btn"
+              onClick={() => {
+                setShowDevMenu((prev) => !prev);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setShowDevMenu((prev) => !prev);
+                } else if (e.key === 'Escape') {
+                  setShowDevMenu(false);
+                }
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all shadow-sm cursor-pointer select-none active:scale-95 ${
                 isDevViewActive || showDevMenu
-                  ? 'bg-sky-500 text-white border-sky-400 shadow-sky-500/30'
+                  ? 'bg-sky-500 text-white border-sky-400 shadow-sky-500/30 ring-2 ring-sky-400/40'
                   : 'bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 hover:text-white border-sky-500/40'
               }`}
-              title="Developer & Simulator Controls"
+              title="Developer & Simulator Controls (Click to open menu)"
+              aria-haspopup="true"
+              aria-expanded={showDevMenu}
             >
               <i className="fa-solid fa-sliders text-xs text-sky-400"></i>
               <span className="text-xs">Dev Tools</span>
-              <i className={`fa-solid fa-chevron-down text-[10px] transition-transform duration-200 ${showDevMenu ? 'rotate-180' : ''}`}></i>
+              <i className={`fa-solid fa-chevron-down text-[10px] transition-transform duration-200 ${showDevMenu ? 'rotate-180 text-white' : 'text-sky-300'}`}></i>
             </button>
 
             {/* Collapsed Dropdown Menu */}
             {showDevMenu && (
-              <div className="absolute right-0 mt-2 w-56 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150 space-y-1">
-                <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800">
-                  Simulation & Displays
+              <div className="absolute right-0 mt-2 w-60 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150 space-y-1">
+                <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800 flex items-center justify-between">
+                  <span>Simulation & Displays</span>
+                  <span className="text-[9px] text-sky-400 font-mono">LIVE</span>
                 </div>
 
                 <button
@@ -180,17 +194,18 @@ export const Header: React.FC<HeaderProps> = ({
                     onViewChange('split');
                     setShowDevMenu(false);
                   }}
-                  className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-semibold transition cursor-pointer text-left ${
+                  className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-semibold transition cursor-pointer text-left active:scale-[0.98] ${
                     currentView === 'split'
-                      ? 'bg-sky-500 text-white'
+                      ? 'bg-sky-500 text-white shadow-sm'
                       : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                   }`}
                 >
                   <i className="fa-solid fa-table-columns text-sky-400"></i>
                   <div className="flex-1 min-w-0">
-                    <span className="block leading-tight truncate">Dual Live Pitch Mode</span>
-                    <span className="text-[10px] text-slate-400 font-normal">Side-by-side patient/staff</span>
+                    <span className="block leading-tight truncate font-bold">Dual Live Pitch Mode</span>
+                    <span className="text-[10px] text-slate-400 font-normal">Side-by-side patient & staff</span>
                   </div>
+                  {currentView === 'split' && <i className="fa-solid fa-check text-xs text-white"></i>}
                 </button>
 
                 <button
@@ -199,23 +214,24 @@ export const Header: React.FC<HeaderProps> = ({
                     onViewChange('tv_kiosk');
                     setShowDevMenu(false);
                   }}
-                  className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-semibold transition cursor-pointer text-left ${
+                  className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-semibold transition cursor-pointer text-left active:scale-[0.98] ${
                     currentView === 'tv_kiosk'
-                      ? 'bg-sky-500 text-white'
+                      ? 'bg-sky-500 text-white shadow-sm'
                       : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                   }`}
                 >
                   <i className="fa-solid fa-tv text-sky-400"></i>
                   <div className="flex-1 min-w-0">
-                    <span className="block leading-tight truncate">TV Kiosk Display</span>
+                    <span className="block leading-tight truncate font-bold">TV Kiosk Display</span>
                     <span className="text-[10px] text-slate-400 font-normal">Waiting hall digital board</span>
                   </div>
+                  {currentView === 'tv_kiosk' && <i className="fa-solid fa-check text-xs text-white"></i>}
                 </button>
 
                 <div className="my-1 border-t border-slate-800"></div>
 
                 <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  Telemetry Utilities
+                  Telemetry & System Actions
                 </div>
 
                 <button
@@ -224,10 +240,13 @@ export const Header: React.FC<HeaderProps> = ({
                     playHospitalChime();
                     setShowDevMenu(false);
                   }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-slate-300 hover:bg-slate-800 hover:text-white transition cursor-pointer text-left"
+                  className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs text-slate-300 hover:bg-slate-800 hover:text-white transition cursor-pointer text-left active:scale-[0.98]"
                 >
                   <i className="fa-solid fa-volume-high text-sky-400"></i>
-                  <span>Test Hospital Chime</span>
+                  <div className="flex-1 min-w-0">
+                    <span className="block leading-tight font-medium">Test Hospital Chime</span>
+                    <span className="text-[10px] text-slate-400">Play standard OPD notification sound</span>
+                  </div>
                 </button>
 
                 <button
@@ -236,10 +255,13 @@ export const Header: React.FC<HeaderProps> = ({
                     onResetDemoData();
                     setShowDevMenu(false);
                   }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-slate-300 hover:bg-rose-950/40 hover:text-rose-300 transition cursor-pointer text-left"
+                  className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs text-rose-300 hover:bg-rose-950/50 hover:text-rose-200 transition cursor-pointer text-left active:scale-[0.98]"
                 >
                   <i className="fa-solid fa-rotate-left text-rose-400"></i>
-                  <span>Reset Demo Queue</span>
+                  <div className="flex-1 min-w-0">
+                    <span className="block leading-tight font-medium">Reset Demo Queue</span>
+                    <span className="text-[10px] text-rose-400/80">Restore sample patients & doctors</span>
+                  </div>
                 </button>
               </div>
             )}

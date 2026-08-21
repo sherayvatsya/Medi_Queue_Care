@@ -11,6 +11,7 @@ interface SplitScreenDemoProps {
   currentUser?: PatientUser | null;
   onUserLogin?: (user: PatientUser) => void;
   onUserLogout?: () => void;
+  onUpdateUserProfile?: (updatedUser: PatientUser) => void;
   onGenerateToken: (p: Patient) => void;
   onUpdatePatient: (p: Patient) => void;
   onUpdateDoctor: (d: Doctor) => void;
@@ -30,6 +31,7 @@ export const SplitScreenDemo: React.FC<SplitScreenDemoProps> = ({
   currentUser,
   onUserLogin,
   onUserLogout,
+  onUpdateUserProfile,
   onGenerateToken,
   onUpdatePatient,
   onUpdateDoctor,
@@ -74,6 +76,7 @@ export const SplitScreenDemo: React.FC<SplitScreenDemoProps> = ({
             currentUser={currentUser}
             onUserLogin={onUserLogin}
             onUserLogout={onUserLogout}
+            onUpdateUserProfile={onUpdateUserProfile}
             onGenerateToken={onGenerateToken}
             onUpdatePatient={onUpdatePatient}
             isMobileFrame={true}

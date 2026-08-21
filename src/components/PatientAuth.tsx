@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { PatientUser } from '../types';
 import { INITIAL_PATIENT_USERS, generateAlphanumericUHID } from '../data/mockData';
 import { playHospitalChime, playUrgentAlertSound } from '../utils/audio';
+import { signInWithGoogle, saveUserProfileToFirestore } from '../firebase';
 import confetti from 'canvas-confetti';
 
 interface PatientAuthProps {
@@ -37,6 +38,9 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
   const [selectedAllergies, setSelectedAllergies] = useState<string[]>([]);
   const [customAllergy, setCustomAllergy] = useState<string>('');
   const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
+  const [customCondition, setCustomCondition] = useState<string>('');
+  const [showCustomConditionInput, setShowCustomConditionInput] = useState<boolean>(false);
+  const [showCustomAllergyInput, setShowCustomAllergyInput] = useState<boolean>(false);
   const [signupPin, setSignupPin] = useState<string>('1234');
   const [agreedTerms, setAgreedTerms] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string>('');
@@ -47,9 +51,28 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
     }
   };
 
+  // Google Sign-In Handler
+  const handleGoogleSignIn = async () => {
+    try {
+      const userProfile = await signInWithGoogle();
+      if (userProfile) {
+        playHospitalChime();
+        try {
+          confetti({ particleCount: 40, spread: 60, origin: { y: 0.6 } });
+        } catch {}
+        notify('Google Sign-In Successful', `Welcome, ${userProfile.name} (${userProfile.uhid})`, 'success');
+        onLoginSuccess(userProfile);
+      }
+    } catch (err: any) {
+      console.warn('Google Sign-In error:', err);
+      notify('Sign-In Error', 'Unable to complete Google sign-in. You can use Mobile OTP or Demo sign-in.', 'info');
+    }
+  };
+
   // Quick Login Demo User
   const handleQuickLogin = (user: PatientUser) => {
     playHospitalChime();
+    saveUserProfileToFirestore(user);
     try {
       confetti({
         particleCount: 35,
@@ -103,6 +126,7 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
       } catch {
         // ignore
       }
+      saveUserProfileToFirestore(matchedUser);
       notify('Sign In Successful', `Welcome back, ${matchedUser.name}! Proceeding to appointment register.`, 'success');
       onLoginSuccess(matchedUser);
     } else {
@@ -122,6 +146,7 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
         chronicConditions: [],
         registeredAt: new Date().toISOString().split('T')[0],
       };
+      saveUserProfileToFirestore(newUser);
       playHospitalChime();
       notify('Signed In', `Welcome, ${newUser.name} (${newUser.uhid})`, 'success');
       onLoginSuccess(newUser);
@@ -162,6 +187,7 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
       registeredAt: new Date().toISOString().split('T')[0],
     };
 
+    saveUserProfileToFirestore(newPatientUser);
     playHospitalChime();
     try {
       confetti({
@@ -183,15 +209,54 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
   };
 
   const toggleAllergy = (item: string) => {
-    setSelectedAllergies((prev) =>
-      prev.includes(item) ? prev.filter((i) => i !== item) : [...prev, item]
-    );
+    if (item === 'None') {
+      setSelectedAllergies(['None']);
+      setShowCustomAllergyInput(false);
+      return;
+    }
+    setSelectedAllergies((prev) => {
+      const filtered = prev.filter((i) => i !== 'None');
+      return filtered.includes(item) ? filtered.filter((i) => i !== item) : [...filtered, item];
+    });
+  };
+
+  const handleAddCustomAllergy = (e?: React.KeyboardEvent | React.MouseEvent) => {
+    if (e && 'key' in e && e.key !== 'Enter') return;
+    if (e) e.preventDefault();
+    const clean = customAllergy.trim();
+    if (clean) {
+      setSelectedAllergies((prev) => {
+        const filtered = prev.filter((i) => i !== 'None');
+        return filtered.includes(clean) ? filtered : [...filtered, clean];
+      });
+      setCustomAllergy('');
+    }
   };
 
   const toggleCondition = (item: string) => {
-    setSelectedConditions((prev) =>
-      prev.includes(item) ? prev.filter((i) => i !== item) : [...prev, item]
-    );
+    if (item === 'None') {
+      // If user clicks None, set to None and open manual type option if they wish to specify or keep None
+      setSelectedConditions(['None']);
+      setShowCustomConditionInput(true);
+      return;
+    }
+    setSelectedConditions((prev) => {
+      const filtered = prev.filter((i) => i !== 'None');
+      return filtered.includes(item) ? filtered.filter((i) => i !== item) : [...filtered, item];
+    });
+  };
+
+  const handleAddCustomCondition = (e?: React.KeyboardEvent | React.MouseEvent) => {
+    if (e && 'key' in e && e.key !== 'Enter') return;
+    if (e) e.preventDefault();
+    const clean = customCondition.trim();
+    if (clean) {
+      setSelectedConditions((prev) => {
+        const filtered = prev.filter((i) => i !== 'None');
+        return filtered.includes(clean) ? filtered : [...filtered, clean];
+      });
+      setCustomCondition('');
+    }
   };
 
   return (
@@ -247,6 +312,43 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
         </div>
 
         <div className="p-5 sm:p-7">
+          {/* Quick Google Sign-In Bar */}
+          <div className="mb-5">
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              className="w-full py-2.5 px-4 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center justify-center gap-2.5 transition shadow-2xs cursor-pointer"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24">
+                <path
+                  fill="#4285F4"
+                  d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.97 0 12s.45 3.82 1.25 5.42l4.03-3.15z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
+                />
+              </svg>
+              <span>Continue with Google (Instant Hospital EHR)</span>
+            </button>
+
+            <div className="flex items-center gap-3 my-4">
+              <div className="flex-1 h-px bg-slate-200"></div>
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                Or with Mobile OTP / UHID
+              </span>
+              <div className="flex-1 h-px bg-slate-200"></div>
+            </div>
+          </div>
+
           {errorMessage && (
             <div className="mb-4 p-3 rounded-lg bg-[#fee2e2] border border-[#fca5a5] text-[#991b1b] text-xs flex items-center gap-2">
               <i className="fa-solid fa-circle-exclamation text-sm shrink-0"></i>
@@ -626,9 +728,20 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
 
               {/* Row 5: Chronic Conditions */}
               <div className="space-y-2">
-                <label className="block text-xs font-bold text-[#0f172a]">
-                  Pre-existing Conditions / Medical History
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-[#0f172a]">
+                    Pre-existing Conditions / Medical History
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowCustomConditionInput(!showCustomConditionInput)}
+                    className="text-[11px] text-[#0ea5e9] hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                  >
+                    <i className="fa-solid fa-keyboard text-[10px]"></i>
+                    <span>{showCustomConditionInput ? 'Hide manual input' : 'Type manually'}</span>
+                  </button>
+                </div>
+
                 <div className="flex flex-wrap gap-1.5">
                   {['Hypertension (High BP)', 'Type 2 Diabetes', 'Asthma / COPD', 'Thyroid Disorder', 'Heart Disease', 'Arthritis', 'None'].map((item) => {
                     const isSel = selectedConditions.includes(item);
@@ -649,6 +762,61 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
                     );
                   })}
                 </div>
+
+                {/* Option to manually type condition when 'None' or 'Type manually' is clicked */}
+                {showCustomConditionInput && (
+                  <div className="p-2.5 bg-[#f0f9ff] border border-[#bae6fd] rounded-xl space-y-1.5 animate-in fade-in duration-200">
+                    <label className="block text-[11px] font-bold text-[#0369a1] flex items-center gap-1.5">
+                      <i className="fa-solid fa-pen-to-square text-[#0ea5e9]"></i>
+                      <span>Type Custom / Other Pre-existing Condition:</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={customCondition}
+                        onChange={(e) => setCustomCondition(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddCustomCondition();
+                          }
+                        }}
+                        placeholder="e.g. Migraine, Kidney Stones, Acid Reflux..."
+                        className="flex-1 px-3 py-1.5 text-xs bg-white rounded-lg border border-[#bae6fd] focus:border-[#0ea5e9] focus:ring-1 focus:ring-[#0ea5e9] focus:outline-hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleAddCustomCondition()}
+                        className="px-3 py-1.5 bg-[#0ea5e9] hover:bg-[#0284c7] text-white text-xs font-bold rounded-lg transition shadow-2xs cursor-pointer shrink-0"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Active non-standard or selected condition tags */}
+                {selectedConditions.filter((c) => c !== 'None').length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {selectedConditions
+                      .filter((c) => c !== 'None')
+                      .map((c) => (
+                        <span
+                          key={c}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#e0f2fe] text-[#0369a1] font-semibold text-[11px] border border-[#bae6fd]"
+                        >
+                          <span>{c}</span>
+                          <button
+                            type="button"
+                            onClick={() => toggleCondition(c)}
+                            className="text-[#0284c7] hover:text-[#0369a1] cursor-pointer text-xs"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                  </div>
+                )}
               </div>
 
               {/* Consent & Security */}

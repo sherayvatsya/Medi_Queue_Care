@@ -40,6 +40,26 @@ export const db = config.firestoreDatabaseId
   ? getFirestore(app, config.firestoreDatabaseId)
   : getFirestore(app);
 
+// Helper to recursively strip undefined values so Firestore does not throw 'Unsupported field value: undefined'
+export function sanitizeFirestoreData<T>(obj: T): T {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map((item) => sanitizeFirestoreData(item)) as unknown as T;
+  }
+  if (typeof obj === 'object') {
+    const sanitized: Record<string, any> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (value !== undefined) {
+        sanitized[key] = sanitizeFirestoreData(value);
+      }
+    }
+    return sanitized as T;
+  }
+  return obj;
+}
+
 // Google Sign In
 export async function signInWithGoogle(): Promise<PatientUser | null> {
   try {
@@ -77,7 +97,7 @@ export async function signInWithGoogle(): Promise<PatientUser | null> {
         hasHealthPass: true,
       };
 
-      await setDoc(userDocRef, patientProfile);
+      await setDoc(userDocRef, sanitizeFirestoreData(patientProfile));
     }
 
     return patientProfile;
@@ -101,7 +121,7 @@ export async function seedInitialFirestoreData(): Promise<void> {
       const batch = writeBatch(db);
       INITIAL_DOCTORS.forEach((docData) => {
         const docRef = doc(db, 'doctors', docData.id);
-        batch.set(docRef, docData);
+        batch.set(docRef, sanitizeFirestoreData(docData));
       });
       await batch.commit();
     }
@@ -112,7 +132,7 @@ export async function seedInitialFirestoreData(): Promise<void> {
       const batch = writeBatch(db);
       INITIAL_PATIENTS.forEach((patData) => {
         const patRef = doc(db, 'patients', patData.id);
-        batch.set(patRef, patData);
+        batch.set(patRef, sanitizeFirestoreData(patData));
       });
       await batch.commit();
     }
@@ -125,7 +145,7 @@ export async function seedInitialFirestoreData(): Promise<void> {
 export async function savePatientTokenToFirestore(patient: Patient): Promise<void> {
   try {
     const docRef = doc(db, 'patients', patient.id);
-    await setDoc(docRef, patient, { merge: true });
+    await setDoc(docRef, sanitizeFirestoreData(patient), { merge: true });
   } catch (error) {
     console.error('Error saving patient to Firestore:', error);
   }
@@ -135,7 +155,7 @@ export async function savePatientTokenToFirestore(patient: Patient): Promise<voi
 export async function updateDoctorStatusInFirestore(doctorId: string, updates: Partial<Doctor>): Promise<void> {
   try {
     const docRef = doc(db, 'doctors', doctorId);
-    await updateDoc(docRef, updates);
+    await updateDoc(docRef, sanitizeFirestoreData(updates));
   } catch (error) {
     console.error('Error updating doctor status in Firestore:', error);
   }
@@ -145,7 +165,7 @@ export async function updateDoctorStatusInFirestore(doctorId: string, updates: P
 export async function saveWheelchairRequestToFirestore(request: WheelchairRequest): Promise<void> {
   try {
     const docRef = doc(db, 'wheelchairs', request.id);
-    await setDoc(docRef, request, { merge: true });
+    await setDoc(docRef, sanitizeFirestoreData(request), { merge: true });
   } catch (error) {
     console.error('Error saving wheelchair request to Firestore:', error);
   }
@@ -157,7 +177,7 @@ export async function updateWheelchairStatusInFirestore(requestId: string, statu
     const docRef = doc(db, 'wheelchairs', requestId);
     const updates: any = { status };
     if (porterName) updates.porterName = porterName;
-    await updateDoc(docRef, updates);
+    await updateDoc(docRef, sanitizeFirestoreData(updates));
   } catch (error) {
     console.error('Error updating wheelchair status in Firestore:', error);
   }
@@ -167,7 +187,7 @@ export async function updateWheelchairStatusInFirestore(requestId: string, statu
 export async function saveUserProfileToFirestore(user: PatientUser): Promise<void> {
   try {
     const docRef = doc(db, 'users', user.id);
-    await setDoc(docRef, user, { merge: true });
+    await setDoc(docRef, sanitizeFirestoreData(user), { merge: true });
   } catch (error) {
     console.error('Error saving user profile to Firestore:', error);
   }

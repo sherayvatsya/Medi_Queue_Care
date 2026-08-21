@@ -15,6 +15,7 @@ import {
   db,
   seedInitialFirestoreData,
   savePatientTokenToFirestore,
+  saveUserProfileToFirestore,
   updateDoctorStatusInFirestore,
   signOutPatient,
 } from './firebase';
@@ -32,8 +33,8 @@ export default function App() {
   const [patients, setPatients] = useState<Patient[]>(INITIAL_PATIENTS);
   const [protocols, setProtocols] = useState<ICMRProtocol[]>(INITIAL_PROTOCOLS);
 
-  // Patient Authentication State (Default to Rajesh Mukherjee or first user)
-  const [currentUser, setCurrentUser] = useState<PatientUser | null>(INITIAL_PATIENT_USERS[0]);
+  // Patient Authentication State (Prompt Sign-In / Sign-Up on initial visit)
+  const [currentUser, setCurrentUser] = useState<PatientUser | null>(null);
 
   // Active Patient for Patient View
   const [currentPatientId, setCurrentPatientId] = useState<string>('pat-3');
@@ -171,6 +172,33 @@ export default function App() {
     }
     setCurrentUser(null);
     showToast('Signed Out', 'Patient session cleared. Ready for next intake.', 'info');
+  };
+
+  // Handle Update Patient User Profile
+  const handleUpdateUserProfile = (updatedUser: PatientUser) => {
+    setCurrentUser(updatedUser);
+    saveUserProfileToFirestore(updatedUser);
+
+    // Sync matching patient tokens
+    setPatients((prev) =>
+      prev.map((p) => {
+        if (
+          (p.uhid && updatedUser.uhid && p.uhid.toLowerCase() === updatedUser.uhid.toLowerCase()) ||
+          (p.userId && updatedUser.id && p.userId === updatedUser.id)
+        ) {
+          const updatedPat: Patient = {
+            ...p,
+            name: updatedUser.name,
+            age: updatedUser.age,
+            gender: updatedUser.gender,
+            phone: updatedUser.phone,
+          };
+          savePatientTokenToFirestore(updatedPat);
+          return updatedPat;
+        }
+        return p;
+      })
+    );
   };
 
   // Handle Token Generation from Patient Portal
@@ -408,6 +436,7 @@ export default function App() {
               currentUser={currentUser}
               onUserLogin={handleUserLogin}
               onUserLogout={handleUserLogout}
+              onUpdateUserProfile={handleUpdateUserProfile}
               onGenerateToken={handleGenerateToken}
               onUpdatePatient={handleUpdatePatient}
               isMobileFrame={isMobileFrameActive}
@@ -456,6 +485,7 @@ export default function App() {
               currentUser={currentUser}
               onUserLogin={handleUserLogin}
               onUserLogout={handleUserLogout}
+              onUpdateUserProfile={handleUpdateUserProfile}
               onGenerateToken={handleGenerateToken}
               onUpdatePatient={handleUpdatePatient}
               onUpdateDoctor={handleUpdateDoctor}
