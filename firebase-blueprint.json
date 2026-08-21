@@ -1,0 +1,114 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Registered hospital patient profile and auth record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "uhid": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "age": { "type": "number" },
+        "gender": { "type": "string" },
+        "bloodGroup": { "type": "string" },
+        "emergencyContactName": { "type": "string" },
+        "emergencyContactPhone": { "type": "string" },
+        "allergies": { "type": "array", "items": { "type": "string" } },
+        "chronicConditions": { "type": "array", "items": { "type": "string" } },
+        "registeredAt": { "type": "string" },
+        "avatarUrl": { "type": "string" }
+      },
+      "required": ["id", "uhid", "name"]
+    },
+    "PatientToken": {
+      "title": "PatientToken",
+      "description": "Live OPD queue token pass and triage record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "tokenNumber": { "type": "string" },
+        "uhid": { "type": "string" },
+        "name": { "type": "string" },
+        "age": { "type": "number" },
+        "gender": { "type": "string" },
+        "phone": { "type": "string" },
+        "department": { "type": "string" },
+        "doctorId": { "type": "string" },
+        "doctorName": { "type": "string" },
+        "roomNumber": { "type": "string" },
+        "opdBlock": { "type": "string" },
+        "floor": { "type": "string" },
+        "symptoms": { "type": "array", "items": { "type": "string" } },
+        "triageCategory": { "type": "string" },
+        "triageNotes": { "type": "string" },
+        "preTestOptIn": { "type": "boolean" },
+        "preTestStatus": { "type": "string" },
+        "queuePosition": { "type": "number" },
+        "estimatedWaitMinutes": { "type": "number" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["tokenNumber", "uhid", "name", "department", "status"]
+    },
+    "Doctor": {
+      "title": "Doctor",
+      "description": "Live hospital consultant status and queue state",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "specialty": { "type": "string" },
+        "department": { "type": "string" },
+        "roomNumber": { "type": "string" },
+        "opdBlock": { "type": "string" },
+        "floor": { "type": "string" },
+        "status": { "type": "string" },
+        "currentPatientToken": { "type": "string" },
+        "todayConsultedCount": { "type": "number" },
+        "activeQueueCount": { "type": "number" }
+      },
+      "required": ["id", "name", "specialty", "roomNumber"]
+    },
+    "WheelchairRequest": {
+      "title": "WheelchairRequest",
+      "description": "Patient mobility assistance requests",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "patientId": { "type": "string" },
+        "patientName": { "type": "string" },
+        "tokenNumber": { "type": "string" },
+        "location": { "type": "string" },
+        "requestedAt": { "type": "string" },
+        "status": { "type": "string" },
+        "porterName": { "type": "string" }
+      },
+      "required": ["id", "patientName", "tokenNumber", "location", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Patient user profiles"
+    },
+    "/patients/{patientId}": {
+      "schema": "PatientToken",
+      "description": "Live hospital queue tokens and appointments"
+    },
+    "/doctors/{doctorId}": {
+      "schema": "Doctor",
+      "description": "Live doctor availability and active consult room"
+    },
+    "/wheelchairs/{requestId}": {
+      "schema": "WheelchairRequest",
+      "description": "Wheelchair dispatch and porter requests"
+    },
+    "/announcements/{announcementId}": {
+      "schema": "object",
+      "description": "OPD announcements and emergency alerts"
+    }
+  }
+}

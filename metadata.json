@@ -1,0 +1,6 @@
+{
+  "name": "Medi-Queue - Smart Hospital Queue & AI Triage Platform",
+  "description": "In-hospital smart queue management, AI pre-consultation triage, and real-time indoor wayfinding for multi-specialty OPDs.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
