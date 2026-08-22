@@ -1,15 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { Doctor, Patient, ICMRProtocol, PatientUser } from './types';
-import { INITIAL_DOCTORS, INITIAL_PATIENTS, INITIAL_PROTOCOLS, INITIAL_PATIENT_USERS } from './data/mockData';
-import { Header, AppViewMode } from './components/Header';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Doctor, Patient, ICMRProtocol, PatientUser, StaffUser, UserRole, StaffSection } from './types';
+import { INITIAL_DOCTORS, INITIAL_PATIENTS, INITIAL_PROTOCOLS } from './data/mockData';
+import { Header, PatientNavView } from './components/Header';
 import { PatientPortal } from './components/PatientPortal';
 import { StaffDashboard } from './components/StaffDashboard';
-import { SplitScreenDemo } from './components/SplitScreenDemo';
-import { TVKioskDisplay } from './components/TVKioskDisplay';
-import { HospitalGoogleMap } from './components/HospitalGoogleMap';
 import { TeleconsultModule } from './components/TeleconsultModule';
+import { HospitalLeafletMap } from './components/HospitalLeafletMap';
+import { HospitalLogin } from './components/HospitalLogin';
 import { OTPAuthModal } from './components/OTPAuthModal';
+import { EditProfileModal } from './components/EditProfileModal';
 import { playHospitalChime, playUrgentAlertSound } from './utils/audio';
+import { getValidDoctorAvatar } from './utils/doctorAvatar';
 import {
   auth,
   db,
@@ -23,21 +24,75 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { collection, onSnapshot, doc, getDoc, setDoc } from 'firebase/firestore';
 
 export default function App() {
-  // Navigation
-  const [viewMode, setViewMode] = useState<AppViewMode>('patient');
+  // 1. Role-Based Access Control & User State Management
+  const [userRole, setUserRole] = useState<UserRole>(() => {
+    const savedRole = localStorage.getItem('mediqueue_role');
+    return savedRole === 'staff' ? 'staff' : 'patient';
+  });
+
+  const [staffUser, setStaffUser] = useState<StaffUser | null>(() => {
+    try {
+      const savedStaff = localStorage.getItem('mediqueue_staff_user');
+      return savedStaff ? JSON.parse(savedStaff) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [currentUser, setCurrentUser] = useState<PatientUser | null>(() => {
+    try {
+      const savedPatient = localStorage.getItem('mediqueue_patient_user');
+      return savedPatient ? JSON.parse(savedPatient) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // 2. Navigation State for Patient & Staff
+  const [patientNavView, setPatientNavView] = useState<PatientNavView>(() => {
+    const hash = window.location.hash.replace('#', '').toLowerCase();
+    if (hash === 'teleconsult') return 'teleconsult';
+    if (hash === 'hospital-map' || hash === 'map' || hash === 'hospitals') return 'hospital_map';
+    return 'patient_pass';
+  });
+
+  const [activeStaffSection, setActiveStaffSection] = useState<StaffSection>(() => {
+    const hash = window.location.hash.replace('#', '').toLowerCase();
+    if (hash === 'queue' || hash === 'queue-management') return 'queue_management';
+    if (hash === 'doctors' || hash === 'doctor-availability') return 'doctor_availability';
+    if (hash === 'patients' || hash === 'patient-management') return 'patient_management';
+    if (hash === 'reports' || hash === 'analytics') return 'reports';
+    if (hash === 'hospital-profile' || hash === 'profile') return 'hospital_profile';
+    return 'staff_dashboard';
+  });
+
+  const [isHospitalLoginOpen, setIsHospitalLoginOpen] = useState<boolean>(() => {
+    const hash = window.location.hash.replace('#', '').toLowerCase();
+    return hash === 'hospital-login';
+  });
+
+  // Modals & UI Controls
   const [isMobileFrameActive, setIsMobileFrameActive] = useState<boolean>(false);
   const [showGlobalAuthModal, setShowGlobalAuthModal] = useState<boolean>(false);
+  const [showPatientProfileModal, setShowPatientProfileModal] = useState<boolean>(false);
 
   // Application Data States
   const [doctors, setDoctors] = useState<Doctor[]>(INITIAL_DOCTORS);
   const [patients, setPatients] = useState<Patient[]>(INITIAL_PATIENTS);
   const [protocols, setProtocols] = useState<ICMRProtocol[]>(INITIAL_PROTOCOLS);
 
-  // Patient Authentication State (Prompt Sign-In / Sign-Up on initial visit)
-  const [currentUser, setCurrentUser] = useState<PatientUser | null>(null);
-
-  // Active Patient for Patient View
-  const [currentPatientId, setCurrentPatientId] = useState<string>('pat-3');
+  // Active Patient for Patient View (Strictly initialized from authenticated active pass)
+  const [currentPatientId, setCurrentPatientId] = useState<string>(() => {
+    try {
+      const savedPatient = localStorage.getItem('mediqueue_patient_user');
+      if (savedPatient) {
+        return localStorage.getItem('mediqueue_active_patient_id') || '';
+      }
+      return '';
+    } catch {
+      return '';
+    }
+  });
 
   // Database Connection Indicator
   const [isDbConnected, setIsDbConnected] = useState<boolean>(false);
@@ -50,17 +105,130 @@ export default function App() {
     type: 'info' | 'success' | 'urgent';
   } | null>(null);
 
-  const showToast = (title: string, description: string, type: 'info' | 'success' | 'urgent' = 'info') => {
+  const showToast = useCallback((title: string, description: string, type: 'info' | 'success' | 'urgent' = 'info') => {
     const id = Date.now();
     setToastMessage({ id, title, description, type });
     setTimeout(() => {
       setToastMessage((current) => (current?.id === id ? null : current));
     }, 4500);
+  }, []);
+
+  // 3. Sync State with Browser URL & Protected Route Enforcement
+  const updateUrlHash = useCallback((hash: string) => {
+    if (window.location.hash !== `#${hash}`) {
+      window.history.replaceState(null, '', `#${hash}`);
+    }
+  }, []);
+
+  // Patient Nav Change
+  const handlePatientNavChange = (nav: PatientNavView) => {
+    setIsHospitalLoginOpen(false);
+    setPatientNavView(nav);
+    const hashMap: Record<PatientNavView, string> = {
+      patient_pass: 'patient-pass',
+      teleconsult: 'teleconsult',
+      hospital_map: 'hospital-map',
+    };
+    updateUrlHash(hashMap[nav] || 'patient-pass');
   };
 
-  // 1. Initialize Firebase and Listen to Auth Changes
+  // Staff Section Change (Strictly for staff)
+  const handleStaffSectionChange = (section: StaffSection) => {
+    if (userRole !== 'staff' || !staffUser) {
+      showToast(
+        'Staff Authentication Required',
+        'You must sign in with authorized hospital employee credentials to view staff sections.',
+        'urgent'
+      );
+      setIsHospitalLoginOpen(true);
+      updateUrlHash('hospital-login');
+      return;
+    }
+    setActiveStaffSection(section);
+    const hashMap: Record<StaffSection, string> = {
+      staff_dashboard: 'staff-dashboard',
+      queue_management: 'queue-management',
+      doctor_availability: 'doctor-availability',
+      patient_management: 'patient-management',
+      reports: 'reports',
+      hospital_profile: 'hospital-profile',
+    };
+    updateUrlHash(hashMap[section] || 'staff-dashboard');
+  };
+
+  // Handle URL Hash Changes (Enforce route-level protection)
   useEffect(() => {
-    // Seed initial data if empty
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#', '').toLowerCase();
+
+      if (hash === 'hospital-login') {
+        setIsHospitalLoginOpen(true);
+        return;
+      }
+
+      if (hash === 'teleconsult') {
+        setIsHospitalLoginOpen(false);
+        setPatientNavView('teleconsult');
+        return;
+      }
+
+      if (hash === 'hospital-map' || hash === 'map' || hash === 'hospitals') {
+        setIsHospitalLoginOpen(false);
+        setPatientNavView('hospital_map');
+        return;
+      }
+
+      if (hash === 'patient-pass' || hash === 'patient') {
+        setIsHospitalLoginOpen(false);
+        setPatientNavView('patient_pass');
+        return;
+      }
+
+      // Hospital routes
+      const hospitalRoutes = [
+        'staff',
+        'staff-dashboard',
+        'queue',
+        'queue-management',
+        'doctors',
+        'doctor-availability',
+        'patients',
+        'patient-management',
+        'reports',
+        'analytics',
+        'hospital-profile',
+      ];
+
+      if (hospitalRoutes.includes(hash)) {
+        const savedRole = localStorage.getItem('mediqueue_role');
+        const savedStaff = localStorage.getItem('mediqueue_staff_user');
+
+        if (savedRole === 'staff' && savedStaff) {
+          setIsHospitalLoginOpen(false);
+          if (hash === 'queue' || hash === 'queue-management') setActiveStaffSection('queue_management');
+          else if (hash === 'doctors' || hash === 'doctor-availability') setActiveStaffSection('doctor_availability');
+          else if (hash === 'patients' || hash === 'patient-management') setActiveStaffSection('patient_management');
+          else if (hash === 'reports' || hash === 'analytics') setActiveStaffSection('reports');
+          else if (hash === 'hospital-profile') setActiveStaffSection('hospital_profile');
+          else setActiveStaffSection('staff_dashboard');
+        } else {
+          showToast(
+            'Hospital Access Guard',
+            'Restricted clinical management route. Please sign in with Hospital Staff credentials.',
+            'urgent'
+          );
+          setIsHospitalLoginOpen(true);
+          window.history.replaceState(null, '', '#hospital-login');
+        }
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [showToast]);
+
+  // 4. Initialize Firebase and Listen to Auth Changes
+  useEffect(() => {
     seedInitialFirestoreData().catch(console.warn);
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (fbUser) => {
@@ -71,10 +239,11 @@ export default function App() {
           if (snap.exists()) {
             const data = snap.data() as PatientUser;
             setCurrentUser(data);
+            localStorage.setItem('mediqueue_patient_user', JSON.stringify(data));
           } else {
             const newUser: PatientUser = {
               id: fbUser.uid,
-              uhid: `MQ-DEL-${Math.floor(1000 + Math.random() * 9000)}`,
+              uhid: `SJMC-${new Date().getFullYear()}-DEL-${Math.floor(10000 + Math.random() * 90000)}P`,
               name: fbUser.displayName || 'Registered Patient',
               email: fbUser.email || '',
               phone: fbUser.phoneNumber || '+91 98101 23456',
@@ -91,6 +260,7 @@ export default function App() {
             };
             await setDoc(userDocRef, newUser);
             setCurrentUser(newUser);
+            localStorage.setItem('mediqueue_patient_user', JSON.stringify(newUser));
           }
         } catch (e) {
           console.warn('Auth snapshot error:', e);
@@ -101,7 +271,7 @@ export default function App() {
     return () => unsubscribeAuth();
   }, []);
 
-  // 2. Real-time Firestore Listeners for Patients & Doctors
+  // 5. Real-time Firestore Listeners for Patients & Doctors
   useEffect(() => {
     try {
       const unsubPatients = onSnapshot(
@@ -113,7 +283,6 @@ export default function App() {
             snapshot.forEach((docSnap) => {
               livePatients.push(docSnap.data() as Patient);
             });
-            // Sort by createdAt descending or token number
             livePatients.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
             setPatients(livePatients);
           }
@@ -130,7 +299,12 @@ export default function App() {
             setIsDbConnected(true);
             const liveDoctors: Doctor[] = [];
             snapshot.forEach((docSnap) => {
-              liveDoctors.push(docSnap.data() as Doctor);
+              const rawDoc = docSnap.data() as Doctor;
+              const cleanAvatar = getValidDoctorAvatar(rawDoc.id, rawDoc.avatar);
+              liveDoctors.push({
+                ...rawDoc,
+                avatar: cleanAvatar,
+              });
             });
             setDoctors(liveDoctors);
           }
@@ -145,41 +319,112 @@ export default function App() {
         unsubDoctors();
       };
     } catch (e) {
-      console.warn('Firestore subscription initialization error:', e);
+      console.warn('Firestore subscription error:', e);
     }
   }, []);
 
-  // Find active patient object
-  const currentPatient = patients.find((p) => p.id === currentPatientId) || patients[0] || null;
+  // Find active patient object strictly belonging to currentUser or the active session
+  const currentPatient = currentUser
+    ? (currentPatientId ? patients.find((p) => p.id === currentPatientId) : null) ||
+      patients.find((p) => p.userId === currentUser.id) ||
+      patients.find(
+        (p) =>
+          currentUser.uhid &&
+          p.uhid &&
+          p.uhid.toLowerCase() === currentUser.uhid.toLowerCase()
+      ) ||
+      patients.find(
+        (p) =>
+          currentUser.phone &&
+          p.phone &&
+          p.phone.replace(/\D/g, '') === currentUser.phone.replace(/\D/g, '')
+      ) ||
+      null
+    : null;
 
-  // Handle User Login / Sign Up via OTP or Google
-  const handleUserLogin = (user: PatientUser) => {
+  // Active Hospital Name strictly from active patient context or staff user
+  const activeHospitalName =
+    userRole === 'staff'
+      ? staffUser?.hospitalName || 'Hospital Network'
+      : currentUser && currentPatient
+      ? currentPatient.hospitalName || 'Max Super Specialty Hospital, Mohali'
+      : null;
+
+  // Handle Patient Login
+  const handleUserLogin = (user: PatientUser, redirectNavView?: 'patient_pass' | 'teleconsult') => {
     setCurrentUser(user);
+    setUserRole('patient');
+    localStorage.setItem('mediqueue_role', 'patient');
+    localStorage.setItem('mediqueue_patient_user', JSON.stringify(user));
+
     const existingPatient = patients.find(
-      (p) => p.uhid.toLowerCase() === user.uhid.toLowerCase() || p.name.toLowerCase() === user.name.toLowerCase()
+      (p) =>
+        (p.userId && p.userId === user.id) ||
+        (p.uhid && user.uhid && p.uhid.toLowerCase() === user.uhid.toLowerCase()) ||
+        (p.phone && user.phone && p.phone.replace(/\D/g, '') === user.phone.replace(/\D/g, ''))
     );
     if (existingPatient) {
       setCurrentPatientId(existingPatient.id);
+      localStorage.setItem('mediqueue_active_patient_id', existingPatient.id);
+    } else {
+      setCurrentPatientId('');
+      localStorage.removeItem('mediqueue_active_patient_id');
     }
+    setIsHospitalLoginOpen(false);
+    const targetNav = redirectNavView || patientNavView || 'patient_pass';
+    setPatientNavView(targetNav);
+    updateUrlHash(targetNav === 'teleconsult' ? 'teleconsult' : 'patient-pass');
   };
 
-  // Handle User Logout
-  const handleUserLogout = async () => {
-    try {
-      await signOutPatient();
-    } catch (e) {
-      console.warn(e);
+  // Handle Hospital Staff Login
+  const handleStaffLoginSuccess = (staff: StaffUser) => {
+    setStaffUser(staff);
+    setUserRole('staff');
+    localStorage.setItem('mediqueue_role', 'staff');
+    localStorage.setItem('mediqueue_staff_user', JSON.stringify(staff));
+
+    setIsHospitalLoginOpen(false);
+    setActiveStaffSection('staff_dashboard');
+    updateUrlHash('staff-dashboard');
+  };
+
+  // Handle Logout (Strictly Clears Role, Patient Session, Active Hospital & Storage)
+  const handleLogout = async () => {
+    if (userRole === 'staff') {
+      setStaffUser(null);
+      setUserRole('patient');
+      localStorage.removeItem('mediqueue_role');
+      localStorage.removeItem('mediqueue_staff_user');
+      showToast('Staff Session Ended', 'Hospital management logged out securely.', 'info');
+      setIsHospitalLoginOpen(false);
+      setPatientNavView('patient_pass');
+      updateUrlHash('patient-pass');
+    } else {
+      try {
+        await signOutPatient();
+      } catch (e) {
+        console.warn(e);
+      }
+      setCurrentUser(null);
+      setCurrentPatientId('');
+      localStorage.removeItem('mediqueue_patient_user');
+      localStorage.removeItem('mediqueue_role');
+      localStorage.removeItem('mediqueue_selected_hospital');
+      localStorage.removeItem('mediqueue_active_patient_id');
+      localStorage.removeItem('mediqueue_active_pass');
+      sessionStorage.clear();
+      showToast('Signed Out', 'Patient session cleared. Ready for next intake.', 'info');
+      setPatientNavView('patient_pass');
+      updateUrlHash('patient-pass');
     }
-    setCurrentUser(null);
-    showToast('Signed Out', 'Patient session cleared. Ready for next intake.', 'info');
   };
 
   // Handle Update Patient User Profile
   const handleUpdateUserProfile = (updatedUser: PatientUser) => {
     setCurrentUser(updatedUser);
+    localStorage.setItem('mediqueue_patient_user', JSON.stringify(updatedUser));
     saveUserProfileToFirestore(updatedUser);
 
-    // Sync matching patient tokens
     setPatients((prev) =>
       prev.map((p) => {
         if (
@@ -205,11 +450,9 @@ export default function App() {
   const handleGenerateToken = (newPatient: Patient) => {
     setPatients((prev) => [newPatient, ...prev]);
     setCurrentPatientId(newPatient.id);
-
-    // Save to Firestore Real-Time Database
+    localStorage.setItem('mediqueue_active_patient_id', newPatient.id);
     savePatientTokenToFirestore(newPatient);
 
-    // Increment doctor active count
     setDoctors((prev) =>
       prev.map((d) => {
         if (d.id === newPatient.doctorId) {
@@ -223,7 +466,7 @@ export default function App() {
 
     showToast(
       'Token Generated & Synced',
-      `Token #${newPatient.tokenNumber} issued for ${newPatient.department} (${newPatient.roomNumber}) and stored in Firestore database.`,
+      `Token #${newPatient.tokenNumber} issued for ${newPatient.department} (${newPatient.roomNumber}) and stored in database.`,
       'success'
     );
   };
@@ -234,7 +477,7 @@ export default function App() {
     savePatientTokenToFirestore(updated);
   };
 
-  // Handle Doctor Update (e.g. Room Override or Status Change)
+  // Handle Doctor Update
   const handleUpdateDoctor = (updatedDoc: Doctor) => {
     const prevDoc = doctors.find((d) => d.id === updatedDoc.id);
     const roomChanged = prevDoc && prevDoc.roomNumber !== updatedDoc.roomNumber;
@@ -242,7 +485,6 @@ export default function App() {
     setDoctors((prev) => prev.map((d) => (d.id === updatedDoc.id ? updatedDoc : d)));
     updateDoctorStatusInFirestore(updatedDoc.id, updatedDoc);
 
-    // If room changed, update roomNumber on all active patients of this doctor!
     if (roomChanged) {
       setPatients((prev) =>
         prev.map((p) => {
@@ -268,14 +510,12 @@ export default function App() {
     const docItem = doctors.find((d) => d.id === doctorId);
     if (!docItem) return;
 
-    // Find the first waiting patient for this doctor
     const nextPatient = patients.find((p) => p.doctorId === doctorId && p.status === 'waiting');
     if (!nextPatient) {
       showToast('Queue Empty', `No waiting patients for ${docItem.name}`, 'info');
       return;
     }
 
-    // Mark previous in-consultation patient as completed if any
     setPatients((prev) =>
       prev.map((p) => {
         if (p.doctorId === doctorId && p.status === 'in_consultation') {
@@ -307,7 +547,6 @@ export default function App() {
       })
     );
 
-    // Update doctor's current token in Firestore
     const updatedDocValues = {
       currentPatientToken: nextPatient.tokenNumber,
       todayConsultedCount: docItem.todayConsultedCount + 1,
@@ -348,7 +587,7 @@ export default function App() {
 
     const completed = patients.find((p) => p.id === patientId);
     if (completed) {
-      showToast('Consultation Finished', `Token #${completed.tokenNumber} marked complete in Firestore.`, 'success');
+      showToast('Consultation Finished', `Token #${completed.tokenNumber} marked complete.`, 'success');
       playHospitalChime();
     }
   };
@@ -379,7 +618,7 @@ export default function App() {
     playUrgentAlertSound();
     showToast(
       '🚨 EMERGENCY ESCALATION',
-      'Patient diverted to Emergency Casualty Bay 1 with Code RED.',
+      'Patient diverted to Emergency Casualty Bay 1 with Code RED priority.',
       'urgent'
     );
   };
@@ -399,71 +638,59 @@ export default function App() {
     showToast('Protocol Registered', `ICMR diagnostic rule added: ${newProto.condition}`, 'success');
   };
 
-  // Reset Demo Data
-  const handleResetDemoData = () => {
-    setDoctors(INITIAL_DOCTORS);
-    setPatients(INITIAL_PATIENTS);
-    setProtocols(INITIAL_PROTOCOLS);
-    setCurrentPatientId('pat-3');
-    showToast('Demo State Reset', 'Queue, doctors, and diagnostic rules restored.', 'info');
-    playHospitalChime();
-  };
-
   const activeWheelchairCount = patients.filter((p) => p.wheelchairRequest && p.wheelchairRequest.status !== 'completed').length;
   const unreadAlerts = patients.filter((p) => p.triageCategory === 'urgent_er').length + activeWheelchairCount;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-700 flex flex-col selection:bg-sky-500 selection:text-white box-border overflow-x-hidden">
-      {/* Top Header */}
+      {/* Top Header - Strictly Role-Based Navigation
+          Patient Mode: Patient Pass | Tele-Consult | Profile | Logout
+          Staff Mode: Staff Dashboard | Queue Management | Doctor Availability | Patient Management | Reports | Hospital Profile | Logout
+      */}
       <Header
-        currentView={viewMode}
-        onViewChange={(v) => setViewMode(v)}
-        serverStatus={isDbConnected ? 'connected' : 'connected'}
-        unreadAlertsCount={unreadAlerts}
-        onResetDemoData={handleResetDemoData}
+        currentRole={userRole}
+        patientNavView={patientNavView}
+        onPatientNavChange={handlePatientNavChange}
+        activeHospitalName={activeHospitalName}
+        activeStaffSection={activeStaffSection}
+        onStaffSectionChange={handleStaffSectionChange}
         currentUser={currentUser}
-        onSignOut={handleUserLogout}
-        onOpenAuthModal={() => setShowGlobalAuthModal(true)}
+        staffUser={staffUser}
+        unreadAlertsCount={unreadAlerts}
+        onOpenPatientProfile={() => setShowPatientProfileModal(true)}
+        onOpenPatientAuth={() => setShowGlobalAuthModal(true)}
+        onOpenHospitalLogin={() => {
+          setIsHospitalLoginOpen(true);
+          updateUrlHash('hospital-login');
+        }}
+        onSignOut={handleLogout}
       />
 
       {/* Main App Body */}
       <main className="flex-1 w-full max-w-7xl mx-auto p-2.5 sm:p-6 box-border">
-        {viewMode === 'patient' && (
-          <div className="animate-in fade-in duration-300">
-            <PatientPortal
-              doctors={doctors}
-              currentPatient={currentPatient}
-              currentUser={currentUser}
-              onUserLogin={handleUserLogin}
-              onUserLogout={handleUserLogout}
-              onUpdateUserProfile={handleUpdateUserProfile}
-              onGenerateToken={handleGenerateToken}
-              onUpdatePatient={handleUpdatePatient}
-              isMobileFrame={isMobileFrameActive}
-              onToggleMobileFrame={() => setIsMobileFrameActive(!isMobileFrameActive)}
+        {/* VIEW 1: HOSPITAL LOGIN (Displayed when hospital login is requested) */}
+        {isHospitalLoginOpen ? (
+          <div className="animate-in fade-in duration-200">
+            <HospitalLogin
+              onLoginSuccess={handleStaffLoginSuccess}
+              onCancel={() => {
+                setIsHospitalLoginOpen(false);
+                updateUrlHash('patient-pass');
+              }}
               onShowToast={showToast}
-              onRequestTeleconsult={() => setViewMode('teleconsult')}
             />
           </div>
-        )}
-
-        {viewMode === 'teleconsult' && (
-          <div className="animate-in fade-in duration-300">
-            <TeleconsultModule
-              doctors={doctors}
-              currentUser={currentUser}
-              onShowToast={showToast}
-              onReturnToOPD={() => setViewMode('patient')}
-            />
-          </div>
-        )}
-
-        {viewMode === 'staff' && (
-          <div className="animate-in fade-in duration-300">
+        ) : userRole === 'staff' && staffUser ? (
+          /* VIEW 2: HOSPITAL STAFF MANAGEMENT SUITE
+             (Renders only for verified Hospital Staff with dedicated staff sections) */
+          <div className="animate-in fade-in duration-200">
             <StaffDashboard
               doctors={doctors}
               patients={patients}
               protocols={protocols}
+              staffUser={staffUser}
+              activeSection={activeStaffSection}
+              onSectionChange={handleStaffSectionChange}
               onUpdateDoctor={handleUpdateDoctor}
               onUpdatePatient={handleUpdatePatient}
               onCallNextPatient={handleCallNextPatient}
@@ -473,63 +700,44 @@ export default function App() {
               onAddProtocol={handleAddProtocol}
             />
           </div>
-        )}
-
-        {viewMode === 'split' && (
-          <div className="animate-in fade-in duration-300">
-            <SplitScreenDemo
-              doctors={doctors}
-              patients={patients}
-              protocols={protocols}
-              currentPatient={currentPatient}
-              currentUser={currentUser}
-              onUserLogin={handleUserLogin}
-              onUserLogout={handleUserLogout}
-              onUpdateUserProfile={handleUpdateUserProfile}
-              onGenerateToken={handleGenerateToken}
-              onUpdatePatient={handleUpdatePatient}
-              onUpdateDoctor={handleUpdateDoctor}
-              onCallNextPatient={handleCallNextPatient}
-              onCompletePatient={handleCompletePatient}
-              onEscalateToER={handleEscalateToER}
-              onToggleProtocol={handleToggleProtocol}
-              onAddProtocol={handleAddProtocol}
-              onShowToast={showToast}
-            />
-          </div>
-        )}
-
-        {viewMode === 'tv_kiosk' && (
-          <div className="animate-in fade-in duration-300">
-            <TVKioskDisplay doctors={doctors} patients={patients} />
-          </div>
-        )}
-
-        {viewMode === 'campus_map' && (
-          <div className="animate-in fade-in duration-300 max-w-6xl mx-auto">
-            <div className="mb-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
-              <div>
-                <h2 className="text-base sm:text-lg font-extrabold text-slate-900 flex items-center gap-2">
-                  <i className="fa-solid fa-map-location-dot text-sky-500"></i>
-                  Hospital Campus & Google Maps Live Grounding
-                </h2>
-                <p className="text-xs text-slate-500">
-                  Google Maps Platform • Gemini Maps Grounding AI • Apollo / AIIMS Delhi Medical Campus Hub
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setViewMode('patient')}
-                className="px-3.5 py-2 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm cursor-pointer"
-              >
-                <i className="fa-solid fa-ticket"></i>
-                <span>Open Patient OPD Pass</span>
-              </button>
-            </div>
-            <HospitalGoogleMap
-              onShowToast={showToast}
-              onSwitchToIndoorMap={() => setViewMode('patient')}
-            />
+        ) : (
+          /* VIEW 3: PATIENT PORTAL & TELE-CONSULT
+             (Strictly for patients and unauthenticated guests) */
+          <div className="animate-in fade-in duration-200">
+            {patientNavView === 'patient_pass' ? (
+              <PatientPortal
+                doctors={doctors}
+                currentPatient={currentPatient}
+                currentUser={currentUser}
+                onUserLogin={handleUserLogin}
+                onUserLogout={handleLogout}
+                onUpdateUserProfile={handleUpdateUserProfile}
+                onGenerateToken={handleGenerateToken}
+                onUpdatePatient={handleUpdatePatient}
+                isMobileFrame={isMobileFrameActive}
+                onToggleMobileFrame={() => setIsMobileFrameActive(!isMobileFrameActive)}
+                onShowToast={showToast}
+                onRequestTeleconsult={() => handlePatientNavChange('teleconsult')}
+                onOpenHospitalMap={() => handlePatientNavChange('hospital_map')}
+              />
+            ) : patientNavView === 'teleconsult' ? (
+              <TeleconsultModule
+                doctors={doctors}
+                currentUser={currentUser}
+                onUserLogin={(user) => handleUserLogin(user, 'teleconsult')}
+                onShowToast={showToast}
+                onReturnToOPD={() => handlePatientNavChange('patient_pass')}
+                onBookInPersonInstead={() => handlePatientNavChange('patient_pass')}
+              />
+            ) : (
+              <HospitalLeafletMap
+                onShowToast={showToast}
+                onSelectHospitalForBooking={(hosp) => {
+                  showToast('Hospital Selected', `Switched to ${hosp.name}. Proceed with OPD registration.`, 'success');
+                  handlePatientNavChange('patient_pass');
+                }}
+              />
+            )}
           </div>
         )}
       </main>
@@ -581,7 +789,16 @@ export default function App() {
         </div>
       )}
 
-      {/* Global OTP & Google Auth Modal */}
+      {/* Patient Profile Modal (triggered by Patient Profile header button) */}
+      <EditProfileModal
+        isOpen={showPatientProfileModal}
+        onClose={() => setShowPatientProfileModal(false)}
+        currentUser={currentUser}
+        onSaveProfile={handleUpdateUserProfile}
+        onShowToast={showToast}
+      />
+
+      {/* Global Patient OTP & Google Auth Modal */}
       <OTPAuthModal
         isOpen={showGlobalAuthModal}
         onClose={() => setShowGlobalAuthModal(false)}
@@ -589,22 +806,36 @@ export default function App() {
         onShowToast={showToast}
       />
 
-      {/* Footer */}
+      {/* Footer with Role Indicator & Clean Hospital Staff link */}
       <footer className="border-t border-slate-200/80 bg-white py-3.5 px-4 text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <span className="font-bold text-slate-900">Medi-Queue™</span>
-            <span>— In-Hospital Smart Queue & Real-time Database</span>
+            <span>— Smart Hospital Queue & Real-time Platform</span>
           </div>
           <div className="flex items-center gap-3 text-[11px] text-slate-500 flex-wrap justify-center">
             <span className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-              Firebase Firestore Active
+              {userRole === 'staff' ? 'Staff Session Active' : 'Patient Portal Mode'}
             </span>
             <span>•</span>
-            <span>Google Maps Grounding Enabled</span>
-            <span>•</span>
-            <span>ICMR Clinical Protocols</span>
+            {userRole !== 'staff' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsHospitalLoginOpen(true);
+                    updateUrlHash('hospital-login');
+                  }}
+                  className="text-sky-600 hover:text-sky-700 hover:underline font-semibold cursor-pointer flex items-center gap-1"
+                >
+                  <i className="fa-solid fa-user-shield text-[10px]"></i>
+                  <span>Hospital Staff Access</span>
+                </button>
+                <span>•</span>
+              </>
+            )}
+            <span>ICMR Clinical Board</span>
           </div>
         </div>
       </footer>

@@ -28,6 +28,30 @@ export default defineConfig(() => {
         '@': path.resolve(__dirname, '.'),
       },
     },
+    build: {
+      chunkSizeWarningLimit: 1600,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              if (id.includes('jspdf') || id.includes('html2canvas') || id.includes('dompurify')) {
+                return 'pdf-vendor';
+              }
+              if (id.includes('@google/genai')) {
+                return 'genai-vendor';
+              }
+              if (id.includes('firebase')) {
+                return 'firebase-vendor';
+              }
+              if (id.includes('lucide-react') || id.includes('motion')) {
+                return 'ui-vendor';
+              }
+              return 'vendor';
+            }
+          },
+        },
+      },
+    },
     server: {
       port: 3000,
       host: '0.0.0.0',

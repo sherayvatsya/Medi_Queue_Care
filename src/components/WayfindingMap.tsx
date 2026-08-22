@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { WayfindingStep } from '../types';
 import { WAYFINDING_ROUTES } from '../data/mockData';
 import { playHospitalChime } from '../utils/audio';
-import { HospitalGoogleMap } from './HospitalGoogleMap';
-import { MapsGroundingAssistant } from './MapsGroundingAssistant';
+import { HospitalLeafletMap } from './HospitalLeafletMap';
 
 interface WayfindingMapProps {
   roomNumber: string;
@@ -230,12 +229,26 @@ export const WayfindingMap: React.FC<WayfindingMapProps> = ({
       </div>
 
       {activeViewMode === 'gmap' ? (
-        <HospitalGoogleMap
-          initialDestination={isEmergency ? 'er' : 'opd'}
-          targetRoomNumber={roomNumber}
-          onShowToast={onShowToast}
-          onSwitchToIndoorMap={() => setActiveViewMode('indoor')}
-        />
+        <div className="space-y-3">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <i className="fa-solid fa-map-location-dot text-sky-500"></i>
+              <span>Interactive Hospital Campus & Network (OpenStreetMap)</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setActiveViewMode('indoor')}
+              className="text-xs text-sky-600 hover:text-sky-700 font-bold flex items-center gap-1"
+            >
+              <i className="fa-solid fa-compass text-[11px]"></i>
+              <span>Back to Indoor Wayfinding</span>
+            </button>
+          </div>
+          <HospitalLeafletMap
+            onShowToast={onShowToast}
+            initialHospitalId="hosp-max-mohali"
+          />
+        </div>
       ) : activeViewMode === 'indoor' ? (
         <div className="space-y-3">
           {/* Hospital Floorplan SVG */}
@@ -453,11 +466,6 @@ export const WayfindingMap: React.FC<WayfindingMapProps> = ({
           })}
         </div>
       )}
-
-      {/* Google Maps Campus Grounding AI Assistant */}
-      <div className="mt-4 pt-3 border-t border-[#e2e8f0]">
-        <MapsGroundingAssistant onShowToast={onShowToast} defaultOpen={false} />
-      </div>
     </div>
   );
 };

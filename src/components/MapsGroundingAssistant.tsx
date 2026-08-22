@@ -33,27 +33,11 @@ export const MapsGroundingAssistant: React.FC<MapsGroundingAssistantProps> = ({
   const [responseMarkdown, setResponseMarkdown] = useState<string>('');
   const [groundingChunks, setGroundingChunks] = useState<GroundingChunk[]>([]);
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number }>({
-    lat: 28.5672,
-    lng: 77.2100,
+    lat: 30.72484,
+    lng: 76.72138,
   });
 
-  // Get user geolocation if available
-  useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setUserCoords({
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-          });
-        },
-        (err) => {
-          // Default to AIIMS / St. Jude Delhi
-          console.log('Using default hospital coordinates for Maps Grounding:', err.message);
-        }
-      );
-    }
-  }, []);
+  // Do not request geolocation on mount without user action
 
   const handleQuery = async (searchQuery: string) => {
     if (!searchQuery.trim()) return;

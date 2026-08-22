@@ -1,12 +1,20 @@
 import React, { useState } from 'react';
-import { Doctor, Patient, ICMRProtocol, DoctorStatus } from '../types';
-import { playHospitalChime, announceTokenVoice } from '../utils/audio';
+import { Doctor, Patient, ICMRProtocol, DoctorStatus, StaffUser, StaffSection, RescheduleAudit } from '../types';
+import { playHospitalChime, announceTokenVoice, playUrgentAlertSound } from '../utils/audio';
 import { HospitalGoogleMap } from './HospitalGoogleMap';
+import { getValidDoctorAvatar, handleDoctorImageError } from '../utils/doctorAvatar';
+import { RescheduleModal } from './RescheduleModal';
+import { DoctorScheduleModal } from './DoctorScheduleModal';
+import { RescheduleAuditModal } from './RescheduleAuditModal';
 
 interface StaffDashboardProps {
   doctors: Doctor[];
   patients: Patient[];
   protocols: ICMRProtocol[];
+  audits?: RescheduleAudit[];
+  staffUser?: StaffUser | null;
+  activeSection?: StaffSection;
+  onSectionChange?: (section: StaffSection) => void;
   onUpdateDoctor: (updatedDoc: Doctor) => void;
   onUpdatePatient: (updatedPatient: Patient) => void;
   onCallNextPatient: (doctorId: string) => void;
@@ -14,12 +22,32 @@ interface StaffDashboardProps {
   onEscalateToER: (patientId: string) => void;
   onToggleProtocol: (protocolId: string) => void;
   onAddProtocol: (newProtocol: ICMRProtocol) => void;
+  onReschedulePatient?: (
+    patientId: string,
+    newDate: string,
+    newTime: string,
+    reason: string,
+    customReason?: string,
+    newRoom?: string
+  ) => void;
+  onSaveDoctorSchedule?: (
+    doctorId: string,
+    newStatus: DoctorStatus,
+    delayMinutes?: number,
+    expectedReturnTime?: string,
+    reason?: string,
+    affectedAppointments?: { patientId: string; newTime: string; isIncluded: boolean }[]
+  ) => void;
 }
 
 export const StaffDashboard: React.FC<StaffDashboardProps> = ({
   doctors,
   patients,
   protocols,
+  audits = [],
+  staffUser,
+  activeSection = 'staff_dashboard',
+  onSectionChange,
   onUpdateDoctor,
   onUpdatePatient,
   onCallNextPatient,
@@ -27,14 +55,24 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
   onEscalateToER,
   onToggleProtocol,
   onAddProtocol,
+  onReschedulePatient,
+  onSaveDoctorSchedule,
 }) => {
-  // Filters & State
+  // Filters & Local State
   const [selectedDepartment, setSelectedDepartment] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [triageFilter, setTriageFilter] = useState<string>('All');
   const [editingRoomDocId, setEditingRoomDocId] = useState<string | null>(null);
   const [newRoomInput, setNewRoomInput] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'queue' | 'doctors' | 'protocols' | 'campus_dispatch'>('queue');
   const [showAddProtocolModal, setShowAddProtocolModal] = useState<boolean>(false);
+
+  // Reschedule & Doctor Schedule Modals State
+  const [selectedPatientForReschedule, setSelectedPatientForReschedule] = useState<Patient | null>(null);
+  const [selectedDoctorForSchedule, setSelectedDoctorForSchedule] = useState<Doctor | null>(null);
+  const [showRescheduleModal, setShowRescheduleModal] = useState<boolean>(false);
+  const [showDoctorScheduleModal, setShowDoctorScheduleModal] = useState<boolean>(false);
+  const [showAuditLogsModal, setShowAuditLogsModal] = useState<boolean>(false);
+  const [sessionGuardNotice, setSessionGuardNotice] = useState<string | null>(null);
 
   // New Protocol Form State
   const [newProtoDept, setNewProtoDept] = useState<string>('Orthopedics');
@@ -50,15 +88,23 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
   const erCount = patients.filter((p) => p.triageCategory === 'urgent_er' || p.status === 'er_escalated').length;
   const labOptedCount = patients.filter((p) => p.preTestOptIn).length;
   const labOptInRate = patients.length > 0 ? Math.round((labOptedCount / patients.length) * 100) : 75;
+  const pendingWheelchairs = patients.filter((p) => p.wheelchairRequest && p.wheelchairRequest.status !== 'completed');
 
   // Filtered Patient List
   const filteredPatients = patients.filter((p) => {
     const matchesDept = selectedDepartment === 'All' || p.department === selectedDepartment;
+    const matchesTriage =
+      triageFilter === 'All' ||
+      (triageFilter === 'urgent_er' && (p.triageCategory === 'urgent_er' || p.status === 'er_escalated')) ||
+      (triageFilter === 'fast_track_lab' && p.preTestOptIn) ||
+      (triageFilter === 'waiting' && p.status === 'waiting') ||
+      (triageFilter === 'in_consultation' && p.status === 'in_consultation');
     const matchesQuery =
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.tokenNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.uhid.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesDept && matchesQuery;
+      p.uhid.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.symptoms.some((s) => s.toLowerCase().includes(searchQuery.toLowerCase()));
+    return matchesDept && matchesTriage && matchesQuery;
   });
 
   // Handle Doctor Status Toggle
@@ -118,397 +164,414 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
 
   return (
     <div className="space-y-5 max-w-7xl mx-auto py-1">
-      {/* OPD TELEMETRY & BOTTLENECK BAR */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <div className="p-4 rounded-xl bg-white border border-[#e2e8f0] shadow-sm flex items-center justify-between">
-          <div>
-            <span className="text-[11px] text-[#64748b] font-semibold uppercase tracking-wider">Avg. OPD Wait</span>
-            <div className="text-xl font-bold text-[#0f172a] font-mono mt-0.5">
-              13.8 <span className="text-xs font-normal text-[#64748b]">mins</span>
-            </div>
-            <span className="text-[11px] text-[#166534] font-semibold flex items-center gap-1 mt-0.5">
-              <i className="fa-solid fa-arrow-trend-down"></i> 42% faster with Pre-Labs
-            </span>
-          </div>
-          <div className="w-10 h-10 rounded-lg bg-[#dcfce7] text-[#166534] flex items-center justify-center text-base font-bold">
-            <i className="fa-solid fa-clock"></i>
-          </div>
-        </div>
-
-        <div className="p-4 rounded-xl bg-white border border-[#e2e8f0] shadow-sm flex items-center justify-between">
-          <div>
-            <span className="text-[11px] text-[#64748b] font-semibold uppercase tracking-wider">Active In Queue</span>
-            <div className="text-xl font-bold text-[#0ea5e9] font-mono mt-0.5">
-              {totalWaiting} <span className="text-xs font-normal text-[#64748b]">waiting</span>
-            </div>
-            <span className="text-[11px] text-[#64748b] font-medium">
-              {totalInConsult} in consultation
-            </span>
-          </div>
-          <div className="w-10 h-10 rounded-lg bg-[#e0f2fe] text-[#0369a1] flex items-center justify-center text-base font-bold">
-            <i className="fa-solid fa-people-group"></i>
-          </div>
-        </div>
-
-        <div className="p-4 rounded-xl bg-white border border-[#e2e8f0] shadow-sm flex items-center justify-between">
-          <div>
-            <span className="text-[11px] text-[#64748b] font-semibold uppercase tracking-wider">Lab Pre-Clearance</span>
-            <div className="text-xl font-bold text-[#0d9488] font-mono mt-0.5">
-              {labOptInRate}%
-            </div>
-            <span className="text-[11px] text-[#0d9488] font-semibold">
-              ⚡ Fast-Track active
-            </span>
-          </div>
-          <div className="w-10 h-10 rounded-lg bg-[#ccfbf1] text-[#0f766e] flex items-center justify-center text-base font-bold">
-            <i className="fa-solid fa-flask-vial"></i>
-          </div>
-        </div>
-
-        <div className="p-4 rounded-xl bg-white border border-[#e2e8f0] shadow-sm flex items-center justify-between">
-          <div>
-            <span className="text-[11px] text-[#64748b] font-semibold uppercase tracking-wider">Consults Today</span>
-            <div className="text-xl font-bold text-[#0f172a] font-mono mt-0.5">
-              {completedToday}
-            </div>
-            <span className="text-[11px] text-[#64748b]">
-              4 Specialty OPDs
-            </span>
-          </div>
-          <div className="w-10 h-10 rounded-lg bg-[#f1f5f9] text-[#475569] flex items-center justify-center text-base font-bold">
-            <i className="fa-solid fa-clipboard-check"></i>
-          </div>
-        </div>
-
-        <div className="p-4 rounded-xl bg-[#fff1f2] border border-[#fecdd3] col-span-2 lg:col-span-1 shadow-sm flex items-center justify-between">
-          <div>
-            <span className="text-[11px] text-[#9f1239] font-semibold uppercase tracking-wider">ER / Casualty Alerts</span>
-            <div className="text-xl font-bold text-[#e11d48] font-mono mt-0.5">
-              {erCount} <span className="text-xs font-normal text-[#9f1239]">diverted</span>
-            </div>
-            <span className="text-[11px] text-[#be123c] font-semibold">
-              🚨 0 in general queue
-            </span>
-          </div>
-          <div className="w-10 h-10 rounded-lg bg-[#fee2e2] text-[#991b1b] flex items-center justify-center text-base animate-pulse">
-            <i className="fa-solid fa-truck-medical"></i>
-          </div>
-        </div>
+      {/* =========================================================================
+          HOSPITAL STAFF SUB-NAVIGATION TABS (Quick in-page switcher)
+          ========================================================================= */}
+      <div className="bg-white rounded-2xl p-2 border border-slate-200 shadow-xs flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+        {[
+          { id: 'staff_dashboard', label: 'Staff Dashboard', icon: 'fa-gauge' },
+          { id: 'queue_management', label: 'Queue Management', icon: 'fa-list-check', badge: totalWaiting > 0 ? `${totalWaiting}` : undefined },
+          { id: 'doctor_availability', label: 'Doctor Availability', icon: 'fa-user-doctor', badge: `${doctors.filter((d) => d.status === 'in_room').length} Active` },
+          { id: 'patient_management', label: 'Patient Management', icon: 'fa-hospital-user', badge: `${patients.length}` },
+          { id: 'reports', label: 'Reports & Analytics', icon: 'fa-chart-line' },
+          { id: 'hospital_profile', label: 'Hospital Profile', icon: 'fa-building-columns' },
+        ].map((tab) => {
+          const isActive = activeSection === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => onSectionChange && onSectionChange(tab.id as StaffSection)}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all whitespace-nowrap cursor-pointer ${
+                isActive
+                  ? 'bg-sky-500 text-white shadow-sm'
+                  : 'bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-200/70'
+              }`}
+            >
+              <i className={`fa-solid ${tab.icon} text-xs ${isActive ? 'text-white' : 'text-sky-600'}`}></i>
+              <span>{tab.label}</span>
+              {tab.badge && (
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                  isActive ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                }`}>
+                  {tab.badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
-      {/* MODULE 1: DOCTOR AVAILABILITY MATRIX & REAL-TIME ROOM OVERRIDE */}
-      <div className="bg-white rounded-xl border border-[#e2e8f0] p-5 sm:p-6 shadow-sm space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[#e2e8f0]">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="w-7 h-7 rounded-lg bg-[#e0f2fe] text-[#0ea5e9] flex items-center justify-center text-sm font-bold">
-                <i className="fa-solid fa-user-doctor"></i>
-              </span>
-              <h3 className="text-base font-bold text-[#0f172a]">
-                Doctor Availability Matrix & Real-Time Room Override
-              </h3>
-            </div>
-            <p className="text-xs text-[#64748b] mt-0.5">
-              Control doctor active states, live queue pacing, and room reassignments (auto-syncs to patient wayfinding maps in real time).
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="badge badge-green">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#166534] animate-ping"></span>
-              Live Sync Broadcast Active
-            </span>
-          </div>
-        </div>
-
-        {/* Doctor Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-          {doctors.map((doc) => {
-            const docQueue = patients.filter((p) => p.doctorId === doc.id && p.status === 'waiting');
-            const isEditingThisRoom = editingRoomDocId === doc.id;
-            const isConsulting = doc.status === 'in_room';
-
-            return (
-              <div
-                key={doc.id}
-                className="p-4 rounded-xl border border-[#e2e8f0] bg-white hover:border-[#cbd5e1] transition-all flex flex-col justify-between shadow-xs"
-              >
-                <div>
-                  {/* Doctor Profile Top */}
-                  <div className="flex items-start justify-between gap-2 mb-3">
-                    <div className="flex items-center gap-2.5">
-                      <img
-                        src={doc.avatar}
-                        alt={doc.name}
-                        className="w-10 h-10 rounded-full object-cover border border-[#e2e8f0]"
-                      />
-                      <div>
-                        <h4 className="text-sm font-bold text-[#0f172a] leading-tight">
-                          {doc.name}
-                        </h4>
-                        <span className="text-xs text-[#0ea5e9] font-medium block">
-                          {doc.specialty}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Quick status badge */}
-                    <span className={doc.status === 'in_room' ? 'badge badge-green' : doc.status === 'on_break' ? 'badge badge-amber' : 'badge badge-slate'}>
-                      {doc.status === 'in_room' ? 'Active' : doc.status === 'on_break' ? 'Break' : 'Shifted'}
-                    </span>
-                  </div>
-
-                  {/* Room Number with Override Feature */}
-                  <div className="p-3 rounded-lg bg-[#f8fafc] border border-[#e2e8f0] my-2">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-[11px] text-[#64748b] font-medium">Consultation Room</span>
-                      {!isEditingThisRoom ? (
-                        <button
-                          onClick={() => {
-                            setEditingRoomDocId(doc.id);
-                            setNewRoomInput(doc.roomNumber);
-                          }}
-                          className="text-[11px] text-[#0ea5e9] hover:text-[#0369a1] font-semibold flex items-center gap-1 transition cursor-pointer"
-                          title="Override Doctor Room Number"
-                        >
-                          <i className="fa-solid fa-pen-to-square"></i> Shift Room
-                        </button>
-                      ) : null}
-                    </div>
-
-                    {isEditingThisRoom ? (
-                      <div className="mt-2 flex items-center gap-1.5">
-                        <input
-                          type="text"
-                          value={newRoomInput}
-                          onChange={(e) => setNewRoomInput(e.target.value)}
-                          placeholder="e.g. Room 208"
-                          className="w-full px-2.5 py-1 rounded-md bg-white border border-[#0ea5e9] text-xs text-[#0f172a] focus:outline-none font-bold"
-                          autoFocus
-                        />
-                        <button
-                          onClick={() => handleSaveRoomOverride(doc)}
-                          className="px-2.5 py-1 rounded-md bg-[#0ea5e9] hover:bg-[#0284c7] text-white text-xs font-bold shrink-0 cursor-pointer"
-                        >
-                          Save
-                        </button>
-                        <button
-                          onClick={() => setEditingRoomDocId(null)}
-                          className="px-2 py-1 rounded-md bg-[#f1f5f9] text-[#64748b] hover:text-[#0f172a] text-xs shrink-0 cursor-pointer"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-between mt-1">
-                        <span className="text-sm font-bold text-[#0f172a] font-mono">
-                          {doc.roomNumber}
-                        </span>
-                        <span className="text-[11px] text-[#64748b]">
-                          {doc.opdBlock} • {doc.floor}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Status Switcher Toggles (Professional Polish switch style) */}
-                  <div className="my-2.5 flex items-center justify-between p-2 rounded-lg bg-[#f8fafc] border border-[#e2e8f0]">
-                    <div className="text-[11px]">
-                      <span className="font-semibold text-[#0f172a] block">
-                        {isConsulting ? 'In Room / Consulting' : 'On Break / Paused'}
-                      </span>
-                      <span className="text-[#64748b] text-[10px]">
-                        {isConsulting ? `Serving Token #${doc.currentPatientToken || 'Ready'}` : 'Pacing paused'}
-                      </span>
-                    </div>
-
-                    {/* Smooth Toggle button as requested in theme */}
-                    <div
-                      onClick={() => handleStatusChange(doc, isConsulting ? 'on_break' : 'in_room')}
-                      className={`w-9 h-5 rounded-full relative cursor-pointer transition-colors ${
-                        isConsulting ? 'bg-[#0ea5e9]' : 'bg-[#cbd5e1]'
-                      }`}
-                      title="Toggle Active / Break state"
-                    >
-                      <span
-                        className={`w-3.5 h-3.5 bg-white rounded-full absolute top-[3px] transition-transform ${
-                          isConsulting ? 'left-[19px]' : 'left-[3px]'
-                        }`}
-                      ></span>
-                    </div>
-                  </div>
-
-                  {/* Queue Metrics */}
-                  <div className="flex items-center justify-between text-xs py-1 border-t border-[#e2e8f0] text-[#64748b]">
-                    <span>Queue: <strong className="text-[#0ea5e9]">{docQueue.length} Waiting</strong></span>
-                    <span>Done: <strong className="text-[#0f172a]">{doc.todayConsultedCount}</strong></span>
-                  </div>
+      {/* =========================================================================
+          SECTION 1: STAFF DASHBOARD (Overview, Telemetry & Real-Time Summaries)
+          ========================================================================= */}
+      {(activeSection === 'staff_dashboard' || !activeSection) && (
+        <div className="space-y-5 animate-in fade-in duration-200">
+          {/* Welcome & Shift Card */}
+          <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-sky-950 rounded-2xl p-5 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-md">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-sky-500/20 border border-sky-400/30 text-sky-400 flex items-center justify-center text-xl shadow-inner shrink-0">
+                <i className="fa-solid fa-hospital-user"></i>
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base sm:text-lg font-extrabold text-white">
+                    {staffUser ? staffUser.name : 'Hospital Clinical Console'}
+                  </h2>
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300">
+                    Live Duty
+                  </span>
                 </div>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  {staffUser ? `${staffUser.department} • Staff ID: ${staffUser.staffId}` : 'OPD Central Queue Authority'}
+                </p>
+              </div>
+            </div>
 
-                {/* Call Next Button for this doctor */}
-                <div className="mt-3 pt-2 border-t border-[#e2e8f0]">
-                  <button
-                    onClick={() => handleCallDoctorQueue(doc)}
-                    disabled={docQueue.length === 0}
-                    className={`w-full py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer ${
-                      docQueue.length > 0
-                        ? 'bg-[#0ea5e9] hover:bg-[#0284c7] text-white shadow-xs'
-                        : 'bg-[#f1f5f9] text-[#94a3b8] cursor-not-allowed border border-[#e2e8f0]'
-                    }`}
-                  >
-                    <i className="fa-solid fa-bullhorn text-xs"></i>
-                    <span>Call Next ({docQueue[0]?.tokenNumber || 'None'})</span>
-                  </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => onSectionChange && onSectionChange('queue_management')}
+                className="px-3 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+              >
+                <i className="fa-solid fa-list-check text-xs"></i>
+                <span>Open Active Queue</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onSectionChange && onSectionChange('doctor_availability')}
+                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <i className="fa-solid fa-user-doctor text-xs text-sky-400"></i>
+                <span>Doctor Roster</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Telemetry Metrics Bar */}
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
+              <div>
+                <span className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Avg. OPD Wait</span>
+                <div className="text-xl font-bold text-slate-900 font-mono mt-0.5">
+                  13.8 <span className="text-xs font-normal text-slate-500">mins</span>
+                </div>
+                <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1 mt-0.5">
+                  <i className="fa-solid fa-arrow-trend-down"></i> 42% faster with Pre-Labs
+                </span>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center text-base font-bold">
+                <i className="fa-solid fa-clock"></i>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
+              <div>
+                <span className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Active In Queue</span>
+                <div className="text-xl font-bold text-sky-600 font-mono mt-0.5">
+                  {totalWaiting} <span className="text-xs font-normal text-slate-500">waiting</span>
+                </div>
+                <span className="text-[11px] text-slate-500 font-medium">
+                  {totalInConsult} in consultation
+                </span>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center text-base font-bold">
+                <i className="fa-solid fa-people-group"></i>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
+              <div>
+                <span className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Lab Pre-Clearance</span>
+                <div className="text-xl font-bold text-teal-600 font-mono mt-0.5">
+                  {labOptInRate}%
+                </div>
+                <span className="text-[11px] text-teal-700 font-semibold">
+                  ⚡ Fast-Track active
+                </span>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center text-base font-bold">
+                <i className="fa-solid fa-flask-vial"></i>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
+              <div>
+                <span className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Consults Today</span>
+                <div className="text-xl font-bold text-slate-900 font-mono mt-0.5">
+                  {completedToday}
+                </div>
+                <span className="text-[11px] text-slate-500">
+                  4 Specialty OPDs
+                </span>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center text-base font-bold">
+                <i className="fa-solid fa-clipboard-check"></i>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-rose-50/70 border border-rose-200 col-span-2 lg:col-span-1 shadow-xs flex items-center justify-between">
+              <div>
+                <span className="text-[11px] text-rose-800 font-bold uppercase tracking-wider">ER / Casualty Alerts</span>
+                <div className="text-xl font-bold text-rose-600 font-mono mt-0.5">
+                  {erCount} <span className="text-xs font-normal text-rose-800">diverted</span>
+                </div>
+                <span className="text-[11px] text-rose-700 font-semibold">
+                  🚨 0 in general queue
+                </span>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center text-base animate-pulse">
+                <i className="fa-solid fa-truck-medical"></i>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Active Overview Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Quick Doctor Status */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2">
+                  <i className="fa-solid fa-user-doctor text-sky-500"></i>
+                  <span>Doctor Availability Summary</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => onSectionChange && onSectionChange('doctor_availability')}
+                  className="text-[11px] text-sky-600 font-bold hover:underline cursor-pointer"
+                >
+                  Manage All →
+                </button>
+              </div>
+              <div className="space-y-2.5">
+                {doctors.slice(0, 4).map((doc) => {
+                  const docWaiting = patients.filter((p) => p.doctorId === doc.id && p.status === 'waiting').length;
+                  return (
+                    <div key={doc.id} className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2.5">
+                        <img
+                          src={getValidDoctorAvatar(doc.id, doc.avatar)}
+                          alt={doc.name}
+                          onError={(e) => handleDoctorImageError(e, doc.id)}
+                          className="w-8 h-8 rounded-full object-cover border border-slate-200 bg-slate-100 shrink-0"
+                        />
+                        <div>
+                          <div className="font-bold text-slate-900 leading-tight">{doc.name}</div>
+                          <div className="text-[10px] text-slate-500">{doc.department} • <strong className="font-mono text-slate-700">{doc.roomNumber}</strong></div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          doc.status === 'in_room' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                        }`}>
+                          {doc.status === 'in_room' ? 'Consulting' : 'Break'}
+                        </span>
+                        <div className="text-[10px] text-slate-500 font-mono mt-0.5">{docWaiting} waiting</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Quick Urgent / Wheelchair Queue */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2">
+                  <i className="fa-solid fa-wheelchair text-amber-500"></i>
+                  <span>Wheelchair & Triage Alerts</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => onSectionChange && onSectionChange('queue_management')}
+                  className="text-[11px] text-sky-600 font-bold hover:underline cursor-pointer"
+                >
+                  View Queue →
+                </button>
+              </div>
+
+              {pendingWheelchairs.length > 0 ? (
+                <div className="space-y-2">
+                  {pendingWheelchairs.map((p) => (
+                    <div key={p.id} className="p-3 rounded-xl bg-amber-50/70 border border-amber-200 text-xs flex items-center justify-between">
+                      <div>
+                        <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                          <span>{p.name}</span>
+                          <span className="font-mono text-sky-600">#{p.tokenNumber}</span>
+                        </div>
+                        <div className="text-[11px] text-amber-800 font-medium mt-0.5">
+                          📍 {p.wheelchairRequest?.location}
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-200 text-amber-900">
+                        {p.wheelchairRequest?.status === 'requested' ? 'Porter Needed' : 'Dispatched'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-6 text-center text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                  <i className="fa-solid fa-circle-check text-emerald-500 text-lg mb-1 block"></i>
+                  <p className="text-xs font-semibold text-slate-700">No Pending Mobility Alerts</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">All porter requests cleared.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Live Campus Telemetry Snapshot */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2">
+                  <i className="fa-solid fa-map-location-dot text-sky-500"></i>
+                  <span>Hospital Campus Logistics</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => onSectionChange && onSectionChange('reports')}
+                  className="text-[11px] text-sky-600 font-bold hover:underline cursor-pointer"
+                >
+                  Full Map →
+                </button>
+              </div>
+              <div className="space-y-2 text-xs">
+                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                  <span className="text-slate-600 font-medium">Emergency Trauma Bay 1</span>
+                  <span className="text-emerald-700 font-bold bg-emerald-100 px-2 py-0.5 rounded-md text-[10px]">Open & Ready</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                  <span className="text-slate-600 font-medium">Diagnostic Wing Block C (Pre-Labs)</span>
+                  <span className="text-teal-700 font-bold bg-teal-100 px-2 py-0.5 rounded-md text-[10px]">High Throughput</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                  <span className="text-slate-600 font-medium">P1 Visitor Parking</span>
+                  <span className="text-sky-700 font-bold bg-sky-100 px-2 py-0.5 rounded-md text-[10px]">84 Bays Free</span>
                 </div>
               </div>
-            );
-          })}
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* TABS SELECTOR: OPD QUEUE vs ICMR PROTOCOL MANAGER */}
-      <div className="flex items-center gap-2 border-b border-[#e2e8f0] pb-2">
-        <button
-          onClick={() => setActiveTab('queue')}
-          className={`px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center gap-2 transition cursor-pointer ${
-            activeTab === 'queue'
-              ? 'bg-[#0ea5e9] text-white shadow-xs'
-              : 'text-[#64748b] hover:text-[#0f172a] bg-white border border-[#e2e8f0]'
-          }`}
-        >
-          <i className="fa-solid fa-list-check"></i>
-          <span>OPD Active Queue ({patients.length})</span>
-        </button>
+      {/* =========================================================================
+          SECTION 2: QUEUE MANAGEMENT (Active Queues, Calls, Wheelchair Dispatch)
+          ========================================================================= */}
+      {activeSection === 'queue_management' && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs space-y-4 animate-in fade-in duration-200">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="w-8 h-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center text-sm font-bold">
+                  <i className="fa-solid fa-list-check"></i>
+                </span>
+                <h3 className="text-base font-extrabold text-slate-900">
+                  Hospital Central OPD Queue Management
+                </h3>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Real-time patient intake pacing, live consultation calling, porter wheelchair dispatch, and ER priority diversion.
+              </p>
+            </div>
+            <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              Live Synced
+            </span>
+          </div>
 
-        <button
-          onClick={() => setActiveTab('protocols')}
-          className={`px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center gap-2 transition cursor-pointer ${
-            activeTab === 'protocols'
-              ? 'bg-[#0ea5e9] text-white shadow-xs'
-              : 'text-[#64748b] hover:text-[#0f172a] bg-white border border-[#e2e8f0]'
-          }`}
-        >
-          <i className="fa-solid fa-microscope"></i>
-          <span>ICMR Diagnostic Protocols ({protocols.length})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('campus_dispatch')}
-          className={`px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center gap-2 transition cursor-pointer ${
-            activeTab === 'campus_dispatch'
-              ? 'bg-[#0ea5e9] text-white shadow-xs'
-              : 'text-[#64748b] hover:text-[#0f172a] bg-white border border-[#e2e8f0]'
-          }`}
-        >
-          <i className="fa-solid fa-map-location-dot text-[#38bdf8]"></i>
-          <span>Campus & Ambulance Dispatch (Google Maps)</span>
-        </button>
-      </div>
-
-      {/* TAB 1: OPD ACTIVE QUEUE TABLE */}
-      {activeTab === 'queue' && (
-        <div className="bg-white rounded-xl border border-[#e2e8f0] p-5 shadow-sm space-y-4">
-          {/* REQUIREMENT #10: WHEELCHAIR ASSISTANCE DISPATCH ALERT BANNER */}
-          {patients.some((p) => p.wheelchairRequest && p.wheelchairRequest.status !== 'completed') && (
-            <div className="p-4 rounded-xl bg-[#fef3c7] border-2 border-[#f59e0b] shadow-xs text-[#92400e] space-y-3">
+          {/* Wheelchair Dispatch Banner */}
+          {pendingWheelchairs.length > 0 && (
+            <div className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-300 shadow-xs text-amber-900 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <span className="w-8 h-8 rounded-lg bg-[#f59e0b] text-white flex items-center justify-center text-base font-bold shadow-xs">
+                  <span className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center text-base font-bold shadow-xs">
                     <i className="fa-solid fa-wheelchair"></i>
                   </span>
                   <div>
-                    <h4 className="font-bold text-sm text-[#92400e] flex items-center gap-2">
+                    <h4 className="font-bold text-sm text-amber-900 flex items-center gap-2">
                       <span>EMERGENCY WHEELCHAIR DISPATCH QUEUE</span>
-                      <span className="badge badge-amber text-[10px]">
-                        {patients.filter((p) => p.wheelchairRequest && p.wheelchairRequest.status !== 'completed').length} Pending
+                      <span className="px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 text-[10px] font-bold">
+                        {pendingWheelchairs.length} Pending
                       </span>
                     </h4>
-                    <p className="text-xs text-[#b45309]">
+                    <p className="text-xs text-amber-800">
                       Patient(s) requested mobility assistance at hospital entrance gate.
                     </p>
                   </div>
                 </div>
-                <span className="badge badge-amber font-mono font-bold">NURSE STATION 01</span>
+                <span className="font-mono font-bold text-xs bg-amber-200 px-2 py-1 rounded-lg">NURSE STATION 01</span>
               </div>
 
-              {/* List of active wheelchair requests */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                {patients
-                  .filter((p) => p.wheelchairRequest && p.wheelchairRequest.status !== 'completed')
-                  .map((p) => (
-                    <div
-                      key={p.id}
-                      className="p-3 rounded-lg bg-white border border-[#fde68a] flex items-center justify-between text-xs shadow-xs"
-                    >
-                      <div>
-                        <div className="font-bold text-[#0f172a] flex items-center gap-1.5">
-                          <span>{p.name}</span>
-                          <span className="font-mono text-[#0ea5e9]">#{p.tokenNumber}</span>
-                        </div>
-                        <div className="text-[11px] text-[#92400e] font-medium mt-0.5">
-                          📍 <strong>{p.wheelchairRequest?.location}</strong> • Req at {p.wheelchairRequest?.requestedAt}
-                        </div>
+                {pendingWheelchairs.map((p) => (
+                  <div key={p.id} className="p-3 rounded-xl bg-white border border-amber-200 flex items-center justify-between text-xs shadow-xs">
+                    <div>
+                      <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                        <span>{p.name}</span>
+                        <span className="font-mono text-sky-600">#{p.tokenNumber}</span>
                       </div>
-
-                      <div className="flex items-center gap-1.5">
-                        {p.wheelchairRequest?.status === 'requested' ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (!p.wheelchairRequest) return;
-                              onUpdatePatient({
-                                ...p,
-                                wheelchairRequest: {
-                                  ...p.wheelchairRequest,
-                                  status: 'dispatched',
-                                  dispatchedPorterName: 'Ramesh K. (Porter #04)',
-                                },
-                              });
-                              playHospitalChime();
-                            }}
-                            className="px-2.5 py-1 rounded-md bg-[#f59e0b] hover:bg-[#d97706] text-white font-bold text-[11px] transition cursor-pointer flex items-center gap-1"
-                          >
-                            <i className="fa-solid fa-person-walking-arrow-right"></i>
-                            <span>Dispatch Porter</span>
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (!p.wheelchairRequest) return;
-                              onUpdatePatient({
-                                ...p,
-                                wheelchairRequest: {
-                                  ...p.wheelchairRequest,
-                                  status: 'completed',
-                                },
-                              });
-                              playHospitalChime();
-                            }}
-                            className="px-2.5 py-1 rounded-md bg-[#22c55e] hover:bg-[#16a34a] text-white font-bold text-[11px] transition cursor-pointer flex items-center gap-1"
-                          >
-                            <i className="fa-solid fa-circle-check"></i>
-                            <span>Mark Arrived</span>
-                          </button>
-                        )}
+                      <div className="text-[11px] text-amber-800 font-medium mt-0.5">
+                        📍 <strong>{p.wheelchairRequest?.location}</strong> • Req at {p.wheelchairRequest?.requestedAt}
                       </div>
                     </div>
-                  ))}
+
+                    <div className="flex items-center gap-1.5">
+                      {p.wheelchairRequest?.status === 'requested' ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!p.wheelchairRequest) return;
+                            onUpdatePatient({
+                              ...p,
+                              wheelchairRequest: {
+                                ...p.wheelchairRequest,
+                                status: 'dispatched',
+                                dispatchedPorterName: 'Ramesh K. (Porter #04)',
+                              },
+                            });
+                            playHospitalChime();
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-[11px] transition cursor-pointer flex items-center gap-1 shadow-xs"
+                        >
+                          <i className="fa-solid fa-person-walking-arrow-right"></i>
+                          <span>Dispatch Porter</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!p.wheelchairRequest) return;
+                            onUpdatePatient({
+                              ...p,
+                              wheelchairRequest: {
+                                ...p.wheelchairRequest,
+                                status: 'completed',
+                              },
+                            });
+                            playHospitalChime();
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[11px] transition cursor-pointer flex items-center gap-1 shadow-xs"
+                        >
+                          <i className="fa-solid fa-circle-check"></i>
+                          <span>Mark Arrived</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
 
-          {/* Table Filters & Actions */}
+          {/* Search & Department Filters */}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2 flex-1 max-w-md">
               <div className="relative w-full">
-                <i className="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-[#94a3b8] text-xs"></i>
+                <i className="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-400 text-xs"></i>
                 <input
                   type="text"
                   placeholder="Search patient name, token #, or UHID..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-white border border-[#e2e8f0] text-[#0f172a] placeholder-[#94a3b8] text-xs focus:outline-hidden focus:border-[#0ea5e9]"
+                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-900 placeholder:text-slate-400 text-xs focus:outline-hidden focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition"
                 />
               </div>
             </div>
@@ -519,10 +582,10 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                 <button
                   key={dept}
                   onClick={() => setSelectedDepartment(dept)}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition whitespace-nowrap cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-xl font-bold transition whitespace-nowrap cursor-pointer ${
                     selectedDepartment === dept
-                      ? 'bg-[#0ea5e9] text-white'
-                      : 'bg-[#f8fafc] text-[#64748b] hover:text-[#0f172a] border border-[#e2e8f0]'
+                      ? 'bg-sky-500 text-white shadow-xs'
+                      : 'bg-slate-50 text-slate-600 hover:text-slate-900 border border-slate-200'
                   }`}
                 >
                   {dept}
@@ -532,10 +595,10 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
           </div>
 
           {/* Patient Queue Table */}
-          <div className="overflow-x-auto rounded-lg border border-[#e2e8f0]">
+          <div className="overflow-x-auto rounded-2xl border border-slate-200">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-[#f8fafc] text-[#334155] font-semibold border-b border-[#e2e8f0]">
+                <tr className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
                   <th className="py-3 px-3.5">Token</th>
                   <th className="py-3 px-3.5">Patient Name</th>
                   <th className="py-3 px-3.5">Triage & Complaints</th>
@@ -545,7 +608,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                   <th className="py-3 px-3.5 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#e2e8f0] bg-white">
+              <tbody className="divide-y divide-slate-100 bg-white">
                 {filteredPatients.map((pat) => {
                   const isCurrent = pat.status === 'in_consultation';
                   const isER = pat.triageCategory === 'urgent_er' || pat.status === 'er_escalated';
@@ -554,39 +617,38 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                   return (
                     <tr
                       key={pat.id}
-                      className={`hover:bg-[#f8fafc] transition ${
+                      className={`hover:bg-slate-50/80 transition ${
                         isCurrent
-                          ? 'bg-[#f0fdf4]'
+                          ? 'bg-emerald-50/50'
                           : isER
-                          ? 'bg-[#fff1f2]'
+                          ? 'bg-rose-50/60'
                           : hasWheelchair
-                          ? 'bg-[#fffbeb]'
+                          ? 'bg-amber-50/40'
                           : ''
                       }`}
                     >
                       {/* Token */}
                       <td className="py-3 px-3.5">
-                        <span className="font-mono font-bold text-xs text-[#0f172a] bg-[#f1f5f9] px-2 py-1 rounded border border-[#e2e8f0]">
+                        <span className="font-mono font-bold text-xs text-slate-900 bg-slate-100 px-2 py-1 rounded-lg border border-slate-200">
                           #{pat.tokenNumber}
                         </span>
                       </td>
 
                       {/* Name & UHID */}
                       <td className="py-3 px-3.5">
-                        <div className="font-bold text-[#0f172a] flex items-center gap-1.5">
+                        <div className="font-bold text-slate-900 flex items-center gap-1.5">
                           <span>{pat.name}</span>
                           {hasWheelchair && (
-                            <span className="badge badge-amber text-[9px]">
-                              <i className="fa-solid fa-wheelchair"></i>
-                              WHEELCHAIR REQUESTED
+                            <span className="px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[9px] font-bold">
+                              <i className="fa-solid fa-wheelchair"></i> WHEELCHAIR
                             </span>
                           )}
                         </div>
-                        <div className="text-[11px] text-[#64748b] font-mono">
+                        <div className="text-[11px] text-slate-500 font-mono">
                           {pat.age}y • {pat.gender} • {pat.uhid}
                         </div>
                         {pat.allergiesText && (
-                          <div className="text-[10px] text-[#ef4444] font-semibold flex items-center gap-1 mt-0.5">
+                          <div className="text-[10px] text-rose-600 font-semibold flex items-center gap-1 mt-0.5">
                             <i className="fa-solid fa-shield-virus"></i>
                             <span>Allergies: {pat.allergiesText}</span>
                           </div>
@@ -595,53 +657,46 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
 
                       {/* Triage Class & Symptoms */}
                       <td className="py-3 px-3.5 max-w-[220px]">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span
-                            className={
-                              pat.triageCategory === 'urgent_er'
-                                ? 'badge badge-red'
-                                : pat.triageCategory === 'fast_track_lab'
-                                ? 'badge badge-teal'
-                                : 'badge badge-amber'
-                            }
-                          >
-                            {pat.triageCategory === 'urgent_er' ? 'Urgent (Chest)' : pat.department}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-[#64748b] truncate mt-0.5">
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block ${
+                            pat.triageCategory === 'urgent_er'
+                              ? 'bg-rose-100 text-rose-800'
+                              : pat.triageCategory === 'fast_track_lab'
+                              ? 'bg-teal-100 text-teal-800'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}
+                        >
+                          {pat.triageCategory === 'urgent_er' ? 'Urgent (ER)' : pat.department}
+                        </span>
+                        <p className="text-[11px] text-slate-500 truncate mt-0.5">
                           {pat.symptoms.join(', ')}
                         </p>
-                        {pat.otherSymptomsText && (
-                          <p className="text-[10px] text-[#0ea5e9] italic truncate">
-                            Note: {pat.otherSymptomsText}
-                          </p>
-                        )}
                       </td>
 
                       {/* Pre-Test Status */}
                       <td className="py-3 px-3.5">
                         {pat.preTestOptIn ? (
                           <span
-                            className={
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
                               pat.preTestStatus === 'completed'
-                                ? 'badge badge-green'
-                                : 'badge badge-amber'
-                            }
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}
                           >
                             <i className={`fa-solid ${pat.preTestStatus === 'completed' ? 'fa-check' : 'fa-spinner fa-spin'} text-[9px]`}></i>
                             {pat.preTestStatus === 'completed' ? 'COMPLETED' : 'WAITING'}
                           </span>
                         ) : (
-                          <span className="badge badge-slate">NONE</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">NONE</span>
                         )}
                       </td>
 
                       {/* Assigned Room */}
                       <td className="py-3 px-3.5">
-                        <span className="font-bold text-[#0f172a] block">
+                        <span className="font-bold text-slate-900 block font-mono">
                           {pat.roomNumber}
                         </span>
-                        <span className="text-[11px] text-[#64748b]">
+                        <span className="text-[11px] text-slate-500">
                           {pat.doctorName}
                         </span>
                       </td>
@@ -649,15 +704,15 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                       {/* Status */}
                       <td className="py-3 px-3.5">
                         <span
-                          className={
+                          className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase ${
                             pat.status === 'in_consultation'
-                              ? 'badge badge-green'
+                              ? 'bg-emerald-100 text-emerald-800'
                               : pat.status === 'completed'
-                              ? 'badge badge-slate'
+                              ? 'bg-slate-100 text-slate-600'
                               : pat.status === 'er_escalated'
-                              ? 'badge badge-red'
-                              : 'badge badge-amber'
-                          }
+                              ? 'bg-rose-100 text-rose-800'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}
                         >
                           {pat.status === 'in_consultation' ? 'IN SESSION' : pat.status.replace('_', ' ')}
                         </span>
@@ -676,8 +731,8 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                                 });
                                 announceTokenVoice(pat.tokenNumber, pat.roomNumber, pat.doctorName);
                               }}
-                              className="px-3 py-1 rounded-md border border-[#0ea5e9] text-[#0ea5e9] hover:bg-[#e0f2fe] text-xs font-semibold flex items-center gap-1 transition cursor-pointer"
-                              title="Call this patient into room"
+                              className="px-3 py-1 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold flex items-center gap-1 shadow-xs transition cursor-pointer"
+                              title="Call this patient into consultation room"
                             >
                               <i className="fa-solid fa-bullhorn text-[10px]"></i>
                               <span>Call Next</span>
@@ -687,7 +742,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                           {pat.status === 'in_consultation' && (
                             <button
                               onClick={() => onCompletePatient(pat.id)}
-                              className="px-3 py-1 rounded-md bg-[#22c55e] hover:bg-[#16a34a] text-white text-xs font-semibold flex items-center gap-1 shadow-xs transition cursor-pointer"
+                              className="px-3 py-1 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold flex items-center gap-1 shadow-xs transition cursor-pointer"
                             >
                               <i className="fa-solid fa-check text-[10px]"></i>
                               <span>Finish</span>
@@ -697,7 +752,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                           {pat.status !== 'er_escalated' && pat.status !== 'completed' && (
                             <button
                               onClick={() => onEscalateToER(pat.id)}
-                              className="px-2.5 py-1 rounded-md border border-[#ef4444] text-[#ef4444] hover:bg-[#fee2e2] text-xs font-semibold transition cursor-pointer"
+                              className="px-2.5 py-1 rounded-xl border border-rose-300 text-rose-600 hover:bg-rose-50 text-xs font-bold transition cursor-pointer"
                               title="Immediately transfer to Emergency"
                             >
                               Escalate
@@ -714,97 +769,288 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
         </div>
       )}
 
-      {/* TAB 2: ICMR PRE-TEST PROTOCOL MANAGER */}
-      {activeTab === 'protocols' && (
-        <div className="bg-white rounded-xl border border-[#e2e8f0] p-5 sm:p-6 shadow-sm space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[#e2e8f0]">
+      {/* =========================================================================
+          SECTION 3: DOCTOR AVAILABILITY (Roster, Matrix & Room Override)
+          ========================================================================= */}
+      {activeSection === 'doctor_availability' && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs space-y-4 animate-in fade-in duration-200">
+          <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
             <div>
-              <h3 className="text-base font-bold text-[#0f172a] flex items-center gap-2">
-                <i className="fa-solid fa-book-medical text-[#0ea5e9]"></i>
-                Pre-Approved ICMR Diagnostic Protocols
-              </h3>
-              <p className="text-xs text-[#64748b] mt-0.5">
-                Rules governing preliminary test recommendations in the patient AI triage flow to slash consultation waiting times.
+              <div className="flex items-center gap-2">
+                <span className="w-8 h-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center text-sm font-bold">
+                  <i className="fa-solid fa-user-doctor"></i>
+                </span>
+                <h3 className="text-base font-extrabold text-slate-900">
+                  Doctor Availability Matrix & Real-Time Room Override
+                </h3>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Control active consultation states, queue pacing, and room reassignments (auto-syncs to patient wayfinding in real time).
               </p>
             </div>
 
-            <button
-              onClick={() => setShowAddProtocolModal(true)}
-              className="px-3.5 py-2 rounded-lg bg-[#0ea5e9] hover:bg-[#0284c7] text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
-            >
-              <i className="fa-solid fa-plus"></i> Add Protocol
-            </button>
+            <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+              Live Broadcast Active
+            </span>
           </div>
 
-          {/* Protocols List */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {protocols.map((proto) => (
-              <div
-                key={proto.id}
-                className={`p-4 rounded-xl border transition-all ${
-                  proto.active
-                    ? 'bg-white border-[#cbd5e1] shadow-xs'
-                    : 'bg-[#f8fafc] border-[#e2e8f0] opacity-60'
-                }`}
+          {/* Doctor Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            {doctors.map((doc) => {
+              const docQueue = patients.filter((p) => p.doctorId === doc.id && p.status === 'waiting');
+              const isEditingThisRoom = editingRoomDocId === doc.id;
+              const isConsulting = doc.status === 'in_room';
+
+              return (
+                <div
+                  key={doc.id}
+                  className="p-4 rounded-2xl border border-slate-200 bg-white hover:border-sky-300 transition-all flex flex-col justify-between shadow-xs"
+                >
+                  <div>
+                    {/* Doctor Profile Top */}
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <div className="flex items-center gap-2.5">
+                        <img
+                          src={getValidDoctorAvatar(doc.id, doc.avatar)}
+                          alt={doc.name}
+                          onError={(e) => handleDoctorImageError(e, doc.id)}
+                          className="w-10 h-10 rounded-full object-cover border border-slate-200 bg-slate-100 shrink-0"
+                        />
+                        <div>
+                          <h4 className="text-xs font-bold text-slate-900 leading-tight">
+                            {doc.name}
+                          </h4>
+                          <span className="text-[11px] text-sky-600 font-medium block">
+                            {doc.specialty}
+                          </span>
+                        </div>
+                      </div>
+
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        doc.status === 'in_room'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : doc.status === 'on_break'
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-slate-100 text-slate-700'
+                      }`}>
+                        {doc.status === 'in_room' ? 'Active' : doc.status === 'on_break' ? 'Break' : 'Shifted'}
+                      </span>
+                    </div>
+
+                    {/* Room Number with Override Feature */}
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 my-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-[11px] text-slate-500 font-medium">Consultation Room</span>
+                        {!isEditingThisRoom ? (
+                          <button
+                            onClick={() => {
+                              setEditingRoomDocId(doc.id);
+                              setNewRoomInput(doc.roomNumber);
+                            }}
+                            className="text-[11px] text-sky-600 hover:text-sky-700 font-bold flex items-center gap-1 transition cursor-pointer"
+                            title="Override Doctor Room Number"
+                          >
+                            <i className="fa-solid fa-pen-to-square"></i> Shift Room
+                          </button>
+                        ) : null}
+                      </div>
+
+                      {isEditingThisRoom ? (
+                        <div className="mt-2 flex items-center gap-1.5">
+                          <input
+                            type="text"
+                            value={newRoomInput}
+                            onChange={(e) => setNewRoomInput(e.target.value)}
+                            placeholder="e.g. Room 208"
+                            className="w-full px-2.5 py-1 rounded-lg bg-white border border-sky-500 text-xs text-slate-900 focus:outline-hidden font-bold"
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => handleSaveRoomOverride(doc)}
+                            className="px-2.5 py-1 rounded-lg bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold shrink-0 cursor-pointer"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={() => setEditingRoomDocId(null)}
+                            className="px-2 py-1 rounded-lg bg-slate-200 text-slate-700 text-xs shrink-0 cursor-pointer"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between mt-1">
+                          <span className="text-sm font-bold text-slate-900 font-mono">
+                            {doc.roomNumber}
+                          </span>
+                          <span className="text-[11px] text-slate-500">
+                            {doc.opdBlock} • {doc.floor}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Status Switcher Toggles */}
+                    <div className="my-2.5 flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                      <div className="text-[11px]">
+                        <span className="font-bold text-slate-900 block">
+                          {isConsulting ? 'In Room / Consulting' : 'On Break / Paused'}
+                        </span>
+                        <span className="text-slate-500 text-[10px]">
+                          {isConsulting ? `Serving Token #${doc.currentPatientToken || 'Ready'}` : 'Pacing paused'}
+                        </span>
+                      </div>
+
+                      <div
+                        onClick={() => handleStatusChange(doc, isConsulting ? 'on_break' : 'in_room')}
+                        className={`w-9 h-5 rounded-full relative cursor-pointer transition-colors ${
+                          isConsulting ? 'bg-sky-500' : 'bg-slate-300'
+                        }`}
+                        title="Toggle Active / Break state"
+                      >
+                        <span
+                          className={`w-3.5 h-3.5 bg-white rounded-full absolute top-[3px] transition-transform shadow-xs ${
+                            isConsulting ? 'left-[19px]' : 'left-[3px]'
+                          }`}
+                        ></span>
+                      </div>
+                    </div>
+
+                    {/* Queue Metrics */}
+                    <div className="flex items-center justify-between text-xs py-1 border-t border-slate-100 text-slate-500">
+                      <span>Queue: <strong className="text-sky-600">{docQueue.length} Waiting</strong></span>
+                      <span>Done: <strong className="text-slate-900">{doc.todayConsultedCount}</strong></span>
+                    </div>
+                  </div>
+
+                  {/* Call Next Button for this doctor */}
+                  <div className="mt-3 pt-2 border-t border-slate-100">
+                    <button
+                      onClick={() => handleCallDoctorQueue(doc)}
+                      disabled={docQueue.length === 0}
+                      className={`w-full py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
+                        docQueue.length > 0
+                          ? 'bg-sky-500 hover:bg-sky-600 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
+                      }`}
+                    >
+                      <i className="fa-solid fa-bullhorn text-xs"></i>
+                      <span>Call Next ({docQueue[0]?.tokenNumber || 'None'})</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          SECTION 4: PATIENT MANAGEMENT (EHR Registry, Triage Records, Search)
+          ========================================================================= */}
+      {activeSection === 'patient_management' && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs space-y-4 animate-in fade-in duration-200">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="w-8 h-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center text-sm font-bold">
+                  <i className="fa-solid fa-hospital-user"></i>
+                </span>
+                <h3 className="text-base font-extrabold text-slate-900">
+                  Patient Health Records & Triage Registry
+                </h3>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Complete diagnostic registry, patient allergies, pre-test opt-in tracking, and clinical consultation history.
+              </p>
+            </div>
+            <div className="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
+              Total Registered: <strong>{patients.length} Patients</strong>
+            </div>
+          </div>
+
+          {/* Search and Triage Filter Bar */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="sm:col-span-2 relative">
+              <i className="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-400 text-xs"></i>
+              <input
+                type="text"
+                placeholder="Search by Patient Name, UHID, Symptoms, or Token #..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
+              />
+            </div>
+            <div>
+              <select
+                value={triageFilter}
+                onChange={(e) => setTriageFilter(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-900 focus:outline-hidden focus:border-sky-500 cursor-pointer"
               >
+                <option value="All">All Triage Categories</option>
+                <option value="waiting">Waiting Only</option>
+                <option value="in_consultation">In Session Only</option>
+                <option value="fast_track_lab">Fast-Track Lab Opt-ins</option>
+                <option value="urgent_er">Urgent ER Only</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Patient Cards List */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {filteredPatients.map((pat) => (
+              <div key={pat.id} className="p-4 rounded-2xl border border-slate-200 bg-white hover:border-sky-300 transition-all shadow-xs space-y-3">
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="badge badge-teal">
-                        {proto.department}
-                      </span>
-                      <span className="text-[11px] font-mono text-[#64748b]">
-                        {proto.icmrCode}
+                      <h4 className="text-sm font-extrabold text-slate-900">{pat.name}</h4>
+                      <span className="font-mono text-xs font-bold text-sky-600 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200">
+                        #{pat.tokenNumber}
                       </span>
                     </div>
-                    <h4 className="font-bold text-sm text-[#0f172a] mt-1.5">
-                      {proto.condition}
-                    </h4>
+                    <div className="text-xs text-slate-500 font-mono mt-0.5">
+                      {pat.age} yrs • {pat.gender} • UHID: {pat.uhid}
+                    </div>
                   </div>
-
-                  {/* Toggle switch button */}
-                  <div
-                    onClick={() => onToggleProtocol(proto.id)}
-                    className={`w-9 h-5 rounded-full relative cursor-pointer transition-colors ${
-                      proto.active ? 'bg-[#0ea5e9]' : 'bg-[#cbd5e1]'
-                    }`}
-                  >
-                    <span
-                      className={`w-3.5 h-3.5 bg-white rounded-full absolute top-[3px] transition-transform ${
-                        proto.active ? 'left-[19px]' : 'left-[3px]'
-                      }`}
-                    ></span>
-                  </div>
+                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase ${
+                    pat.status === 'in_consultation'
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : pat.status === 'completed'
+                      ? 'bg-slate-100 text-slate-600'
+                      : pat.status === 'er_escalated'
+                      ? 'bg-rose-100 text-rose-800'
+                      : 'bg-amber-100 text-amber-800'
+                  }`}>
+                    {pat.status.replace('_', ' ')}
+                  </span>
                 </div>
 
-                {/* Recommended tests chips */}
-                <div className="my-3 space-y-1">
-                  <span className="text-[10px] text-[#64748b] uppercase font-bold tracking-wider">
-                    Triggered Pre-Consultation Labs:
-                  </span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {proto.recommendedTests.map((t, idx) => (
-                      <span
-                        key={idx}
-                        className="text-xs px-2.5 py-0.5 rounded-md bg-[#f1f5f9] text-[#334155] border border-[#e2e8f0] font-medium"
-                      >
-                        {t}
+                {/* Clinical Symptoms & Notes */}
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs space-y-1">
+                  <div className="text-slate-600 font-semibold">Chief Symptoms:</div>
+                  <div className="flex flex-wrap gap-1">
+                    {pat.symptoms.map((sym, idx) => (
+                      <span key={idx} className="bg-white border border-slate-200 px-2 py-0.5 rounded-md text-[11px] text-slate-700 font-medium">
+                        {sym}
                       </span>
                     ))}
                   </div>
+                  {pat.allergiesText && (
+                    <div className="text-rose-600 text-[11px] font-bold pt-1 flex items-center gap-1">
+                      <i className="fa-solid fa-triangle-exclamation"></i>
+                      <span>Allergies: {pat.allergiesText}</span>
+                    </div>
+                  )}
                 </div>
 
-                <p className="text-xs text-[#64748b] leading-relaxed bg-[#f8fafc] p-2.5 rounded-lg border border-[#e2e8f0]">
-                  {proto.rationale}
-                </p>
-
-                <div className="mt-3 pt-2 border-t border-[#e2e8f0] flex items-center justify-between text-xs font-mono">
-                  <span className="text-[#166534] font-semibold">
-                    ⚡ Saves ~{proto.timeSavedMins} mins / patient
-                  </span>
-                  <span className="text-[#64748b]">
-                    Accuracy: {proto.accuracyRate}
-                  </span>
+                {/* Assigned OPD Room & Contact */}
+                <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100 text-slate-600">
+                  <div>
+                    <span className="text-slate-400">Assigned: </span>
+                    <strong className="text-slate-800">{pat.doctorName}</strong> ({pat.roomNumber})
+                  </div>
+                  <div className="font-mono text-slate-500">{pat.phone}</div>
                 </div>
               </div>
             ))}
@@ -812,44 +1058,230 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
         </div>
       )}
 
-      {/* TAB 3: CAMPUS TELEMETRY & AMBULANCE DISPATCH (GOOGLE MAPS) */}
-      {activeTab === 'campus_dispatch' && (
-        <div className="bg-white rounded-xl border border-[#e2e8f0] p-4 sm:p-5 shadow-sm space-y-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-3 border-b border-[#e2e8f0]">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="w-8 h-8 rounded-lg bg-[#e0f2fe] text-[#0ea5e9] flex items-center justify-center text-sm font-bold">
-                  <i className="fa-solid fa-map-location-dot"></i>
-                </span>
-                <h3 className="text-base font-bold text-[#0f172a]">
-                  Hospital Campus & Ambulance Emergency Gateway
+      {/* =========================================================================
+          SECTION 5: REPORTS & ANALYTICS (OPD Bottlenecks, ICMR Rules, Campus Maps)
+          ========================================================================= */}
+      {activeSection === 'reports' && (
+        <div className="space-y-5 animate-in fade-in duration-200">
+          {/* Diagnostic Protocols Management */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                  <i className="fa-solid fa-microscope text-sky-500"></i>
+                  <span>Pre-Approved ICMR Diagnostic Protocols</span>
                 </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Rules governing preliminary test recommendations in the patient AI triage flow to slash consultation waiting times.
+                </p>
               </div>
-              <p className="text-xs text-[#64748b] mt-0.5">
-                Real-time campus logistics, ambulance trauma bay routing, visitor parking levels, and emergency supply telemetry.
-              </p>
+
+              <button
+                onClick={() => setShowAddProtocolModal(true)}
+                className="px-3.5 py-2 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+              >
+                <i className="fa-solid fa-plus"></i> Add Protocol
+              </button>
             </div>
-            <span className="badge badge-green">
-              <span className="w-2 h-2 rounded-full bg-[#166534] animate-ping"></span>
-              Google Maps Live Telemetry
-            </span>
+
+            {/* Protocols List */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {protocols.map((proto) => (
+                <div
+                  key={proto.id}
+                  className={`p-4 rounded-2xl border transition-all ${
+                    proto.active
+                      ? 'bg-white border-slate-300 shadow-xs'
+                      : 'bg-slate-50 border-slate-200 opacity-60'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-800">
+                          {proto.department}
+                        </span>
+                        <span className="text-[11px] font-mono text-slate-500">
+                          {proto.icmrCode}
+                        </span>
+                      </div>
+                      <h4 className="font-bold text-xs sm:text-sm text-slate-900 mt-1.5">
+                        {proto.condition}
+                      </h4>
+                    </div>
+
+                    <div
+                      onClick={() => onToggleProtocol(proto.id)}
+                      className={`w-9 h-5 rounded-full relative cursor-pointer transition-colors ${
+                        proto.active ? 'bg-sky-500' : 'bg-slate-300'
+                      }`}
+                    >
+                      <span
+                        className={`w-3.5 h-3.5 bg-white rounded-full absolute top-[3px] transition-transform ${
+                          proto.active ? 'left-[19px]' : 'left-[3px]'
+                        }`}
+                      ></span>
+                    </div>
+                  </div>
+
+                  <div className="my-3 space-y-1">
+                    <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">
+                      Triggered Pre-Consultation Labs:
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {proto.recommendedTests.map((t, idx) => (
+                        <span
+                          key={idx}
+                          className="text-xs px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-800 border border-slate-200 font-medium"
+                        >
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                    {proto.rationale}
+                  </p>
+
+                  <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-mono">
+                    <span className="text-emerald-700 font-bold">
+                      ⚡ Saves ~{proto.timeSavedMins} mins / patient
+                    </span>
+                    <span className="text-slate-500">
+                      Accuracy: {proto.accuracyRate}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
-          <HospitalGoogleMap initialDestination="er" />
+          {/* Google Maps Campus Logistics */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="w-8 h-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center text-sm font-bold">
+                    <i className="fa-solid fa-map-location-dot"></i>
+                  </span>
+                  <h3 className="text-base font-extrabold text-slate-900">
+                    Hospital Campus & Ambulance Logistics Gateway
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Real-time campus logistics, ambulance trauma bay routing, visitor parking levels, and emergency supply telemetry.
+                </p>
+              </div>
+              <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                Google Maps Live Telemetry
+              </span>
+            </div>
+
+            <HospitalGoogleMap initialDestination="er" />
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          SECTION 6: HOSPITAL PROFILE (Institutional Credentials, Staff On Duty)
+          ========================================================================= */}
+      {activeSection === 'hospital_profile' && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-7 shadow-xs space-y-6 animate-in fade-in duration-200">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+            <div className="flex items-center gap-3.5">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-sky-600 to-indigo-600 text-white flex items-center justify-center text-2xl shadow-md">
+                <i className="fa-solid fa-hospital"></i>
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg sm:text-xl font-extrabold text-slate-900">
+                    {staffUser?.hospitalName || 'Max Super Specialty Hospital, Mohali'}
+                  </h2>
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    NABH Accredited
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Tertiary Care & Super-Specialty Medical Institute • License: DL-HOSP-2026-9812
+                </p>
+              </div>
+            </div>
+
+            <div className="text-right text-xs font-mono text-slate-500">
+              <div>OPD Blocks: A, B, C, D</div>
+              <div className="text-emerald-600 font-bold">24x7 Casualty Active</div>
+            </div>
+          </div>
+
+          {/* Active Logged-in Staff Admin Security Card */}
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-900 to-sky-950 text-white space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-sky-500/20 border border-sky-400/30 text-sky-300">
+                Active Staff Session
+              </span>
+              <span className="text-xs font-mono text-slate-300">Security Clearance Level 4</span>
+            </div>
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-xl bg-sky-500/20 border border-sky-400/30 text-sky-300 flex items-center justify-center text-xl shrink-0">
+                <i className="fa-solid fa-user-shield"></i>
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white">{staffUser ? staffUser.name : 'Dr. Alok Verma'}</h3>
+                <p className="text-xs text-slate-300">{staffUser ? staffUser.department : 'OPD Administration & Clinical Operations'}</p>
+                <div className="text-[11px] font-mono text-sky-400 mt-0.5">
+                  Staff ID: {staffUser ? staffUser.staffId : 'MQ-STAFF-8801'} • Role: {staffUser ? staffUser.role.toUpperCase() : 'ADMIN'}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Facility Breakdown */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+              <span className="text-xs font-bold text-slate-800 block mb-1">Clinical Specialties</span>
+              <ul className="text-xs text-slate-600 space-y-1">
+                <li>• General Medicine & Primary Care</li>
+                <li>• Orthopedics & Joint Replacement</li>
+                <li>• Cardiology & Interventional Cath Lab</li>
+                <li>• Pulmonology & Respiratory Care</li>
+              </ul>
+            </div>
+
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+              <span className="text-xs font-bold text-slate-800 block mb-1">Emergency Protocols</span>
+              <ul className="text-xs text-slate-600 space-y-1">
+                <li>• Code RED: Trauma Casualty Bay</li>
+                <li>• Code BLUE: Cardiac Resuscitation</li>
+                <li>• Fast-Track Lab Pre-Clearance</li>
+                <li>• On-Demand Wheelchair Porters</li>
+              </ul>
+            </div>
+
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+              <span className="text-xs font-bold text-slate-800 block mb-1">Hospital Contacts</span>
+              <div className="text-xs text-slate-600 space-y-1 font-mono">
+                <div>Emergency: 102 / +91 11 2659 8888</div>
+                <div>OPD Desk: +91 11 2659 8800</div>
+                <div>IT & Admin: hospital@mediqueue.com</div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
       {/* ADD PROTOCOL MODAL */}
       {showAddProtocolModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0f172a]/60 backdrop-blur-xs">
-          <div className="bg-white rounded-xl border border-[#e2e8f0] max-w-lg w-full p-6 space-y-4 shadow-xl">
-            <div className="flex items-center justify-between pb-2 border-b border-[#e2e8f0]">
-              <h3 className="font-bold text-base text-[#0f172a]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h3 className="font-bold text-base text-slate-900">
                 Add Pre-Approved ICMR Diagnostic Protocol
               </h3>
               <button
                 onClick={() => setShowAddProtocolModal(false)}
-                className="text-[#64748b] hover:text-[#0f172a] cursor-pointer"
+                className="text-slate-400 hover:text-slate-700 cursor-pointer text-sm p-1"
               >
                 ✕
               </button>
@@ -857,11 +1289,11 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
 
             <form onSubmit={handleAddProtocolSubmit} className="space-y-3 text-xs">
               <div>
-                <label className="block text-[#475569] font-medium mb-1">OPD Department</label>
+                <label className="block text-slate-700 font-bold mb-1">OPD Department</label>
                 <select
                   value={newProtoDept}
                   onChange={(e) => setNewProtoDept(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-white border border-[#cbd5e1] text-[#0f172a] focus:outline-none focus:border-[#0ea5e9]"
+                  className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 focus:outline-hidden focus:border-sky-500"
                 >
                   <option value="Orthopedics">Orthopedics</option>
                   <option value="Cardiology">Cardiology</option>
@@ -872,60 +1304,60 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
               </div>
 
               <div>
-                <label className="block text-[#475569] font-medium mb-1">Clinical Condition / Trigger Rule</label>
+                <label className="block text-slate-700 font-bold mb-1">Clinical Condition / Trigger Rule</label>
                 <input
                   type="text"
                   placeholder="e.g. Acute Epigastric Pain with Nausea"
                   value={newProtoCondition}
                   onChange={(e) => setNewProtoCondition(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-white border border-[#cbd5e1] text-[#0f172a] focus:outline-none focus:border-[#0ea5e9]"
+                  className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 focus:outline-hidden focus:border-sky-500"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-[#475569] font-medium mb-1">ICMR / Protocol Reference Code</label>
+                <label className="block text-slate-700 font-bold mb-1">ICMR / Protocol Reference Code</label>
                 <input
                   type="text"
                   value={newProtoCode}
                   onChange={(e) => setNewProtoCode(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-white border border-[#cbd5e1] text-[#0f172a] focus:outline-none font-mono focus:border-[#0ea5e9]"
+                  className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 focus:outline-hidden font-mono focus:border-sky-500"
                 />
               </div>
 
               <div>
-                <label className="block text-[#475569] font-medium mb-1">Recommended Tests (Comma-separated)</label>
+                <label className="block text-slate-700 font-bold mb-1">Recommended Tests (Comma-separated)</label>
                 <input
                   type="text"
                   placeholder="e.g. Serum Amylase, Ultrasound Abdomen, CBC"
                   value={newProtoTests}
                   onChange={(e) => setNewProtoTests(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-white border border-[#cbd5e1] text-[#0f172a] focus:outline-none focus:border-[#0ea5e9]"
+                  className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 focus:outline-hidden focus:border-sky-500"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-[#475569] font-medium mb-1">Clinical Rationale & Time Benefit</label>
+                <label className="block text-slate-700 font-bold mb-1">Clinical Rationale & Time Benefit</label>
                 <textarea
                   placeholder="Explains why pre-ordering this before consultation speeds diagnosis..."
                   value={newProtoRationale}
                   onChange={(e) => setNewProtoRationale(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-white border border-[#cbd5e1] text-[#0f172a] focus:outline-none h-16 focus:border-[#0ea5e9]"
+                  className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 focus:outline-hidden h-16 focus:border-sky-500"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#e2e8f0]">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setShowAddProtocolModal(false)}
-                  className="px-4 py-2 rounded-lg bg-[#f1f5f9] text-[#475569] font-semibold cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-lg bg-[#0ea5e9] hover:bg-[#0284c7] text-white font-semibold cursor-pointer shadow-xs"
+                  className="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-bold cursor-pointer shadow-xs"
                 >
                   Save Protocol
                 </button>

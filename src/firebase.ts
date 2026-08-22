@@ -124,6 +124,17 @@ export async function seedInitialFirestoreData(): Promise<void> {
         batch.set(docRef, sanitizeFirestoreData(docData));
       });
       await batch.commit();
+    } else {
+      // Check if any existing doctor documents have the old broken avatar URL
+      doctorsSnap.forEach(async (docSnap) => {
+        const data = docSnap.data() as Doctor;
+        if (data.avatar && data.avatar.includes('1594824813589')) {
+          const correctDoc = INITIAL_DOCTORS.find((d) => d.id === data.id);
+          if (correctDoc) {
+            await updateDoc(docSnap.ref, { avatar: correctDoc.avatar });
+          }
+        }
+      });
     }
 
     const patientsSnap = await getDocs(collection(db, 'patients'));
@@ -192,3 +203,14 @@ export async function saveUserProfileToFirestore(user: PatientUser): Promise<voi
     console.error('Error saving user profile to Firestore:', error);
   }
 }
+
+// Save Reschedule Audit record in Firestore
+export async function saveRescheduleAuditToFirestore(audit: any): Promise<void> {
+  try {
+    const docRef = doc(db, 'reschedule_audits', audit.id);
+    await setDoc(docRef, sanitizeFirestoreData(audit), { merge: true });
+  } catch (error) {
+    console.error('Error saving reschedule audit to Firestore:', error);
+  }
+}
+

@@ -10,7 +10,7 @@ import {
   useAdvancedMarkerRef,
 } from '@vis.gl/react-google-maps';
 import { playHospitalChime, playUrgentAlertSound } from '../utils/audio';
-import { MapsGroundingAssistant } from './MapsGroundingAssistant';
+import { HospitalLeafletMap } from './HospitalLeafletMap';
 
 // API Key resolution according to Google Maps Platform skill constitution
 const API_KEY =
@@ -462,73 +462,14 @@ export const HospitalGoogleMap: React.FC<HospitalGoogleMapProps> = ({
     }
   };
 
-  // MANDATORY: Render Splash Screen when API key is missing
+  // When Google Maps key is not provided, seamlessly render OpenStreetMap + Leaflet interactive hospital network map
   if (!hasValidGoogleMapsKey) {
     return (
-      <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 sm:p-8 shadow-xs max-w-2xl mx-auto my-4 text-[#334155]">
-        <div className="text-center max-w-lg mx-auto">
-          <div className="w-14 h-14 rounded-2xl bg-[#e0f2fe] text-[#0ea5e9] flex items-center justify-center text-2xl mx-auto mb-3 shadow-xs">
-            <i className="fa-solid fa-map-location-dot"></i>
-          </div>
-          <h2 className="text-lg sm:text-xl font-black text-[#0f172a] tracking-tight">
-            Google Maps API Key Required
-          </h2>
-          <p className="text-xs text-[#64748b] mt-1 leading-relaxed">
-            To enable real-time city navigation, Google Maps campus routing, and 24/7 emergency pharmacy search, add your key:
-          </p>
-
-          <div className="mt-4 p-4 rounded-xl bg-[#f8fafc] border border-[#e2e8f0] text-left text-xs space-y-2.5">
-            <p className="font-semibold text-[#0f172a] flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-[#0ea5e9] text-white flex items-center justify-center text-[10px] font-bold">1</span>
-              <span>
-                Get an API key:{' '}
-                <a
-                  href="https://console.cloud.google.com/google/maps-apis/start?utm_campaign=gmp-code-assist-ais"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[#0ea5e9] underline font-bold hover:text-[#0284c7]"
-                >
-                  Google Cloud Console Start
-                </a>
-              </span>
-            </p>
-            <p className="font-semibold text-[#0f172a] flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-[#0ea5e9] text-white flex items-center justify-center text-[10px] font-bold">2</span>
-              <span>When the <strong>"Enter your environment variable to continue"</strong> popup appears, paste your API key and press <strong>Enter</strong>.</span>
-            </p>
-            <div className="pl-7 text-[11px] text-[#64748b]">
-              <p className="font-medium text-[#475569]">Or manually configure:</p>
-              <ul className="list-disc pl-4 space-y-1 mt-1">
-                <li>Open <strong>Settings</strong> (⚙️ gear icon, top-right corner)</li>
-                <li>Select <strong>Secrets</strong></li>
-                <li>Type <code className="font-mono bg-[#e2e8f0] px-1 py-0.5 rounded text-[#0f172a]">GOOGLE_MAPS_PLATFORM_KEY</code> → <strong>Enter</strong></li>
-                <li>Paste your API key → <strong>Enter</strong></li>
-              </ul>
-            </div>
-            <p className="text-[11px] text-[#0ea5e9] font-medium pt-1 border-t border-[#e2e8f0]">
-              ✨ The app rebuilds automatically after adding the secret — no page reload needed.
-            </p>
-          </div>
-
-          {/* Interactive fallback button if indoor map is available */}
-          {onSwitchToIndoorMap && (
-            <div className="mt-4">
-              <button
-                type="button"
-                onClick={onSwitchToIndoorMap}
-                className="px-4 py-2 rounded-lg bg-[#0ea5e9] hover:bg-[#0284c7] text-white text-xs font-bold transition shadow-xs cursor-pointer inline-flex items-center gap-2"
-              >
-                <i className="fa-solid fa-compass"></i>
-                <span>Open Indoor Hospital Floorplan (Offline Mode)</span>
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Live Maps Grounding Assistant */}
-        <div className="mt-6 text-left">
-          <MapsGroundingAssistant onShowToast={onShowToast} defaultOpen={true} />
-        </div>
+      <div className="space-y-4">
+        <HospitalLeafletMap
+          onShowToast={onShowToast}
+          initialHospitalId="hosp-max-mohali"
+        />
       </div>
     );
   }
@@ -844,11 +785,6 @@ export const HospitalGoogleMap: React.FC<HospitalGoogleMapProps> = ({
             <p className="text-[11px] text-[#64748b] mt-0.5 line-clamp-1">{poi.floorInfo}</p>
           </div>
         ))}
-      </div>
-
-      {/* Real-time Google Maps Grounding Assistant with Gemini & verified Maps Links */}
-      <div className="pt-2">
-        <MapsGroundingAssistant onShowToast={onShowToast} defaultOpen={true} />
       </div>
     </div>
   );

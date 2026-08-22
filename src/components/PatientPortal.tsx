@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { Doctor, Patient, PreTestItem, PatientType, PatientUser, WheelchairRequest } from '../types';
 import { SYMPTOMS_LIST, LAB_LOCATION_DEFAULT, generateAlphanumericUHID } from '../data/mockData';
+import { REAL_HOSPITALS_NETWORK } from '../data/hospitalsData';
 import { WayfindingMap } from './WayfindingMap';
 import { PatientAuth } from './PatientAuth';
 import { OTPAuthModal } from './OTPAuthModal';
 import { EditProfileModal } from './EditProfileModal';
 import { playHospitalChime, playUrgentAlertSound, announceTokenVoice } from '../utils/audio';
 import { exportTokenToPDF } from '../utils/pdfExport';
+import { getValidDoctorAvatar, handleDoctorImageError } from '../utils/doctorAvatar';
 
 interface PatientPortalProps {
   doctors: Doctor[];
@@ -22,6 +24,7 @@ interface PatientPortalProps {
   onUserLogout?: () => void;
   onUpdateUserProfile?: (updatedUser: PatientUser) => void;
   onRequestTeleconsult?: () => void;
+  onOpenHospitalMap?: () => void;
 }
 
 export const PatientPortal: React.FC<PatientPortalProps> = ({
@@ -37,21 +40,35 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
   onUserLogout,
   onUpdateUserProfile,
   onRequestTeleconsult,
+  onOpenHospitalMap,
 }) => {
   // Stepper state: 'type_selection' | 'triage' | 'token_active'
   const [currentStep, setCurrentStep] = useState<'type_selection' | 'triage' | 'token_active'>(
     currentPatient ? 'token_active' : 'type_selection'
   );
 
+  // Automatically update step when currentPatient is set or cleared
+  useEffect(() => {
+    if (currentPatient) {
+      setCurrentStep('token_active');
+    } else {
+      setCurrentStep('type_selection');
+    }
+  }, [currentPatient]);
+
   // Form State initialized from currentUser if present - default to 'new' (General Medicine)
+  const [selectedHospitalId, setSelectedHospitalId] = useState<string>(
+    currentPatient?.hospitalId || 'hosp-max-mohali'
+  );
   const [patientType, setPatientType] = useState<PatientType>('new');
-  const [patientName, setPatientName] = useState<string>(currentUser?.name || 'Rajesh Mukherjee');
-  const [patientAge, setPatientAge] = useState<number>(currentUser?.age || 52);
+  const [patientName, setPatientName] = useState<string>(currentUser?.name || '');
+  const [patientAge, setPatientAge] = useState<number>(currentUser?.age || 35);
   const [patientGender, setPatientGender] = useState<'Male' | 'Female' | 'Other'>(currentUser?.gender || 'Male');
-  const [patientPhone, setPatientPhone] = useState<string>(currentUser?.phone || '+91 98200 55432');
+  const [patientPhone, setPatientPhone] = useState<string>(currentUser?.phone || '');
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>(
     doctors.find((d) => d.department === 'General Medicine')?.id || doctors[0]?.id || 'doc-1'
   );
+  const [doctorDeptFilter, setDoctorDeptFilter] = useState<string>('All Doctors');
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>(['Persistent High Fever']);
   const [otherSymptomsText, setOtherSymptomsText] = useState<string>('');
   const [allergiesText, setAllergiesText] = useState<string>(currentUser?.allergies?.join(', ') || 'Penicillin, Dust Mites');
@@ -205,8 +222,14 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
       allSymptomsList.push(`Manual: ${otherSymptomsText.trim()}`);
     }
 
+    const chosenHospital =
+      REAL_HOSPITALS_NETWORK.find((h) => h.id === selectedHospitalId) ||
+      REAL_HOSPITALS_NETWORK.find((h) => h.id === selectedDoctor.hospitalId) ||
+      REAL_HOSPITALS_NETWORK[0];
+
     const newPatient: Patient = {
       id: `pat-${Date.now()}`,
+      userId: currentUser?.id,
       tokenNumber: tokenStr,
       name: patientName || currentUser?.name || 'Patient Guest',
       age: Number(patientAge) || 45,
@@ -214,6 +237,9 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
       phone: patientPhone || currentUser?.phone || '+91 98000 00000',
       uhid: patientUhid,
       patientType,
+      hospitalId: chosenHospital.id,
+      hospitalName: chosenHospital.name,
+      hospitalAddress: `${chosenHospital.address}, ${chosenHospital.city}`,
       department: isEmergency ? 'Emergency & Trauma' : selectedDoctor.department,
       doctorId: isEmergency ? 'doc-er' : selectedDoctor.id,
       doctorName: isEmergency ? 'Emergency Triage Team' : selectedDoctor.name,
@@ -391,15 +417,6 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
               >
                 <i className="fa-solid fa-user-pen text-sky-600"></i>
                 <span>Edit Details</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowAuthModal(true)}
-                className="flex-1 sm:flex-initial px-3 sm:px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer shadow-2xs whitespace-nowrap"
-                title="Switch patient account or login with another mobile OTP"
-              >
-                <i className="fa-solid fa-arrows-rotate text-slate-500"></i>
-                <span>Switch OTP</span>
               </button>
             </>
           ) : (
@@ -786,6 +803,31 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Hospital Facility Selector */}
+              <div className="sm:col-span-2 bg-slate-50/80 p-3.5 rounded-xl border border-slate-200">
+                <label className="block text-xs font-bold text-slate-800 mb-1.5 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <i className="fa-solid fa-hospital text-sky-600"></i>
+                    <span>Hospital Facility</span>
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-normal">Select OPD hospital</span>
+                </label>
+                <select
+                  value={selectedHospitalId}
+                  onChange={(e) => {
+                    setSelectedHospitalId(e.target.value);
+                    playHospitalChime();
+                  }}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-900 text-xs font-semibold focus:outline-hidden focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 cursor-pointer"
+                >
+                  {REAL_HOSPITALS_NETWORK.map((hosp) => (
+                    <option key={hosp.id} value={hosp.id}>
+                      {hosp.name} • {hosp.city}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1.5">Patient Full Name</label>
                 <input
@@ -797,38 +839,139 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                 />
               </div>
 
-              {/* DOCTOR / OPD SUITE SELECTOR - FILTERED BASED ON PATIENT TYPE */}
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1.5 flex items-center justify-between">
-                  <span>{patientType === 'new' ? 'Assigned General Ward Doctor' : 'Select Specialist Doctor / OPD Suite'}</span>
-                  {patientType === 'new' && (
-                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
-                      General Ward Locked
-                    </span>
-                  )}
-                </label>
+              {/* DOCTOR / OPD SUITE SELECTOR - FULLY CLICKABLE WITH DEPARTMENT FILTERS & CARDS */}
+              <div className="sm:col-span-2 space-y-3 pt-2 border-t border-slate-100">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-900">
+                      Select Doctor & Consultation Room
+                    </label>
+                    <p className="text-[11px] text-slate-500">
+                      Click any doctor to select or switch your consultation room.
+                    </p>
+                  </div>
 
-                {patientType === 'new' ? (
-                  /* NEW REGISTRATION: ONLY SHOW GENERAL WARD / GENERAL MEDICINE OPTION */
+                  {/* Department Filter Tabs */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+                    {['All Doctors', 'General Medicine', 'Orthopedics', 'Cardiology', 'Pulmonology'].map((dept) => {
+                      const isActive = doctorDeptFilter === dept;
+                      return (
+                        <button
+                          key={dept}
+                          type="button"
+                          onClick={() => {
+                            setDoctorDeptFilter(dept);
+                            playHospitalChime();
+                          }}
+                          className={`px-2.5 py-1 rounded-lg font-semibold text-[11px] transition whitespace-nowrap cursor-pointer ${
+                            isActive
+                              ? 'bg-sky-500 text-white shadow-xs'
+                              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                          }`}
+                        >
+                          {dept}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Doctor Selection Cards Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {doctors
+                    .filter((doc) => {
+                      if (doctorDeptFilter === 'All Doctors' || doctorDeptFilter === 'All') return true;
+                      return doc.department === doctorDeptFilter;
+                    })
+                    .map((doc) => {
+                      const isSelected = selectedDoctorId === doc.id;
+                      return (
+                        <div
+                          key={doc.id}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => {
+                            setSelectedDoctorId(doc.id);
+                            playHospitalChime();
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              setSelectedDoctorId(doc.id);
+                              playHospitalChime();
+                            }
+                          }}
+                          className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer select-none flex flex-col justify-between ${
+                            isSelected
+                              ? 'border-2 border-sky-500 bg-sky-50/70 shadow-md ring-2 ring-sky-500/20'
+                              : 'border border-slate-200 bg-white hover:border-sky-300 hover:bg-slate-50/70 hover:shadow-xs'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-start justify-between gap-2 mb-2">
+                              <div className="flex items-center gap-2.5">
+                                <img
+                                  src={getValidDoctorAvatar(doc.id, doc.avatar)}
+                                  alt={doc.name}
+                                  onError={(e) => handleDoctorImageError(e, doc.id)}
+                                  className="w-10 h-10 rounded-full object-cover border border-slate-200 bg-slate-100 shrink-0"
+                                />
+                                <div>
+                                  <h4 className={`text-xs font-bold leading-tight ${isSelected ? 'text-sky-900' : 'text-slate-900'}`}>
+                                    {doc.name}
+                                  </h4>
+                                  <span className="text-[11px] text-sky-600 font-medium block">
+                                    {doc.department}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="shrink-0">
+                                {isSelected ? (
+                                  <span className="w-5 h-5 rounded-full bg-sky-500 text-white flex items-center justify-center text-[10px] shadow-xs">
+                                    <i className="fa-solid fa-check"></i>
+                                  </span>
+                                ) : (
+                                  <span className="w-5 h-5 rounded-full border border-slate-300 text-transparent flex items-center justify-center text-[10px]">
+                                    <i className="fa-solid fa-check"></i>
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                              <span className="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                                {doc.roomNumber}
+                              </span>
+                              <span className="text-slate-500 font-medium">
+                                {doc.floor}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
+                            <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                              {doc.status === 'in_room' ? 'In OPD Room' : 'Available'}
+                            </span>
+                            <span className={isSelected ? 'text-sky-700 font-bold' : 'text-slate-500'}>
+                              {isSelected ? '✓ Selected' : 'Click to select'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+
+                {/* Quick Dropdown Fallback */}
+                <div className="pt-1">
                   <select
                     value={selectedDoctorId}
-                    onChange={(e) => setSelectedDoctorId(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-emerald-50/50 border-2 border-emerald-300 text-emerald-900 font-semibold text-xs focus:outline-hidden focus:border-emerald-500"
-                  >
-                    {doctors
-                      .filter((d) => d.department === 'General Medicine')
-                      .map((doc) => (
-                        <option key={doc.id} value={doc.id}>
-                          {doc.name} — General Ward / Primary Care Triage ({doc.roomNumber}, {doc.floor})
-                        </option>
-                      ))}
-                  </select>
-                ) : (
-                  /* SPECIALIST OPD FOLLOW-UP: SHOW ALL SPECIALIST DOCTORS */
-                  <select
-                    value={selectedDoctorId}
-                    onChange={(e) => setSelectedDoctorId(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-900 text-xs focus:outline-hidden focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
+                    onChange={(e) => {
+                      setSelectedDoctorId(e.target.value);
+                      playHospitalChime();
+                    }}
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-900 text-xs focus:outline-hidden focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 cursor-pointer"
                   >
                     {doctors.map((doc) => (
                       <option key={doc.id} value={doc.id}>
@@ -836,13 +979,14 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                       </option>
                     ))}
                   </select>
-                )}
+                </div>
 
-                {/* Helper notice */}
-                <p className="text-[11px] text-slate-500 mt-1.5">
-                  {patientType === 'new'
-                    ? '📍 General Ward Suite (Room 102, Ground Floor) handles initial diagnostic assessment.'
-                    : `📍 Assigned suite: ${selectedDoctor?.roomNumber} (${selectedDoctor?.floor} ${selectedDoctor?.opdBlock})`}
+                {/* Active Selection Details Helper */}
+                <p className="text-[11px] text-slate-600 bg-sky-50/50 p-2.5 rounded-xl border border-sky-100 flex items-center gap-2">
+                  <i className="fa-solid fa-location-dot text-sky-500"></i>
+                  <span>
+                    Selected <strong>{selectedDoctor.name}</strong> ({selectedDoctor.department}) in <strong>{selectedDoctor.roomNumber}</strong>, {selectedDoctor.floor} ({selectedDoctor.opdBlock}).
+                  </span>
                 </p>
               </div>
 
@@ -967,19 +1111,44 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
               </div>
               <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                 <span className="text-xs text-slate-500 font-medium">Quick suggestions:</span>
-                {['Severe Fatigue', 'Morning Stiffness', 'Acid Reflux', 'Skin Rash', 'Loss of Appetite'].map((tag) => (
-                  <button
-                    key={tag}
-                    type="button"
-                    onClick={() => {
-                      setOtherSymptomsText((prev) => (prev ? `${prev}, ${tag}` : tag));
-                      playHospitalChime();
-                    }}
-                    className="px-2.5 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition cursor-pointer"
-                  >
-                    + {tag}
-                  </button>
-                ))}
+                {['Severe Fatigue', 'Morning Stiffness', 'Acid Reflux', 'Skin Rash', 'Loss of Appetite'].map((tag) => {
+                  const isTagActive = otherSymptomsText
+                    ? otherSymptomsText
+                        .split(',')
+                        .map((s) => s.trim().toLowerCase())
+                        .includes(tag.toLowerCase())
+                    : false;
+
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => {
+                        const currentTags = otherSymptomsText
+                          ? otherSymptomsText
+                              .split(',')
+                              .map((s) => s.trim())
+                              .filter(Boolean)
+                          : [];
+                        if (currentTags.some((t) => t.toLowerCase() === tag.toLowerCase())) {
+                          const nextTags = currentTags.filter((t) => t.toLowerCase() !== tag.toLowerCase());
+                          setOtherSymptomsText(nextTags.join(', '));
+                        } else {
+                          setOtherSymptomsText([...currentTags, tag].join(', '));
+                        }
+                        playHospitalChime();
+                      }}
+                      className={`px-2.5 py-1 rounded-full text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
+                        isTagActive
+                          ? 'bg-sky-500 text-white shadow-xs font-bold ring-2 ring-sky-500/20'
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                      }`}
+                    >
+                      <i className={`fa-solid ${isTagActive ? 'fa-check text-[10px]' : 'fa-plus text-[10px]'}`}></i>
+                      <span>{tag}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -1046,45 +1215,91 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
               </div>
 
               {/* Opt-in Toggle */}
-              <div className="pt-3 border-t border-sky-200">
-                <label className="flex items-center gap-3 cursor-pointer text-xs font-semibold text-slate-900">
-                  <input
-                    type="checkbox"
-                    checked={optInFastTrackLab}
-                    onChange={(e) => {
-                      e.stopPropagation();
-                      setOptInFastTrackLab(e.target.checked);
-                    }}
-                    className="w-4 h-4 rounded text-sky-500 accent-sky-500 cursor-pointer"
-                  />
-                  <div>
-                    <span>Fast-Track Diagnostic Pre-Tests Before Doctor Visit</span>
-                    <p className="text-xs font-normal text-slate-500 mt-0.5">
-                      Your token will route you to Diagnostic Wing Block C first for fast-track sample/X-ray clearance.
-                    </p>
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => {
+                  setOptInFastTrackLab(!optInFastTrackLab);
+                  playHospitalChime();
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setOptInFastTrackLab(!optInFastTrackLab);
+                    playHospitalChime();
+                  }
+                }}
+                className={`p-3.5 rounded-xl border transition-all cursor-pointer select-none flex items-start gap-3 ${
+                  optInFastTrackLab
+                    ? 'bg-sky-500/10 border-sky-400 ring-2 ring-sky-500/20'
+                    : 'bg-white/80 border-sky-200 hover:bg-sky-50'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={optInFastTrackLab}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    setOptInFastTrackLab(e.target.checked);
+                    playHospitalChime();
+                  }}
+                  className="w-4 h-4 rounded text-sky-500 accent-sky-500 cursor-pointer mt-0.5"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900">
+                      Fast-Track Diagnostic Pre-Tests Before Doctor Visit
+                    </span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      optInFastTrackLab ? 'bg-sky-500 text-white' : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {optInFastTrackLab ? '✓ Enabled' : 'Optional'}
+                    </span>
                   </div>
-                </label>
+                  <p className="text-xs font-normal text-slate-500 mt-0.5">
+                    Your token will route you to Diagnostic Wing Block C first for fast-track sample/X-ray clearance.
+                  </p>
+                </div>
               </div>
             </div>
           )}
 
           {/* Emergency Wheelchair Request Toggle at Intake */}
           <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-3 cursor-pointer text-xs font-bold text-slate-900">
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => {
+                setWheelchairRequested(!wheelchairRequested);
+                playHospitalChime();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setWheelchairRequested(!wheelchairRequested);
+                  playHospitalChime();
+                }
+              }}
+              className="flex items-center justify-between cursor-pointer select-none p-1 -m-1 rounded-xl hover:bg-slate-50 transition"
+            >
+              <div className="flex items-center gap-3">
                 <input
                   type="checkbox"
                   checked={wheelchairRequested}
-                  onChange={(e) => setWheelchairRequested(e.target.checked)}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    setWheelchairRequested(e.target.checked);
+                    playHospitalChime();
+                  }}
                   className="w-4 h-4 rounded text-sky-500 accent-sky-500 cursor-pointer"
                 />
-                <span className="flex items-center gap-2">
+                <span className="flex items-center gap-2 text-xs font-bold text-slate-900">
                   <i className="fa-solid fa-wheelchair text-sky-500"></i>
                   <span>Request Wheelchair Assistance at Hospital Entrance</span>
                 </span>
-              </label>
+              </div>
               <span
-                className={`px-3 py-1 text-xs font-semibold rounded-full border ${
+                className={`px-3 py-1 text-xs font-semibold rounded-full border transition ${
                   wheelchairRequested
                     ? 'bg-amber-50 text-amber-700 border-amber-200'
                     : 'bg-slate-100 text-slate-600 border-slate-200'
@@ -1102,8 +1317,11 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                 </div>
                 <select
                   value={wheelchairLocation}
-                  onChange={(e) => setWheelchairLocation(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-emerald-300 text-slate-900 text-xs font-semibold focus:outline-hidden"
+                  onChange={(e) => {
+                    setWheelchairLocation(e.target.value);
+                    playHospitalChime();
+                  }}
+                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-emerald-300 text-slate-900 text-xs font-semibold focus:outline-hidden cursor-pointer"
                 >
                   <option value="Main Gate 1 Entrance">Main Gate 1 Entrance (Reception Atrium)</option>
                   <option value="Metro Skywalk Gate 3">Metro Skywalk Gate 3 (Overpass)</option>
@@ -1184,7 +1402,22 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
           )}
 
           {/* 2. MAIN TOKEN PASS CARD ("A-42" / "G-48") */}
-          <div className="rounded-2xl bg-gradient-to-br from-sky-500 via-sky-600 to-cyan-600 text-white text-center p-4 sm:p-8 shadow-lg relative overflow-hidden space-y-3 w-full box-border">
+          <div className="rounded-2xl bg-gradient-to-br from-sky-500 via-sky-600 to-cyan-600 text-white text-center p-4 sm:p-8 shadow-lg relative overflow-hidden space-y-3.5 w-full box-border">
+            {/* Hospital Facility Header Badge */}
+            <div className="flex items-center justify-between gap-2 border-b border-white/20 pb-2.5">
+              <div className="flex items-center gap-2 min-w-0 text-left">
+                <span className="w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
+                  <i className="fa-solid fa-hospital text-emerald-200 text-xs"></i>
+                </span>
+                <span className="block text-xs sm:text-sm font-bold text-white truncate drop-shadow-xs">
+                  {currentPatient.hospitalName || 'Max Super Specialty Hospital, Mohali'}
+                </span>
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-500/30 border border-emerald-400/40 text-emerald-100 px-2.5 py-0.5 rounded-full shrink-0">
+                Verified Pass
+              </span>
+            </div>
+
             <div className="flex flex-col xs:flex-row gap-2 justify-between items-center text-center xs:text-left px-1 w-full">
               <span className="text-xs font-bold uppercase tracking-widest text-sky-100">
                 LIVE PATIENT PASS
@@ -1206,8 +1439,8 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
             </div>
 
             {/* Sub-info with Flexible Centered Pill Container */}
-            <div className="py-1.5 my-1 flex justify-center w-full">
-              <div className="inline-block bg-white/15 backdrop-blur-xs px-3.5 sm:px-4 py-2 rounded-full sub-pill-clamp font-semibold text-white shadow-2xs max-w-full text-center break-words">
+            <div className="py-1 flex justify-center w-full">
+              <div className="inline-block bg-white/20 backdrop-blur-xs px-3.5 sm:px-4 py-2 rounded-full sub-pill-clamp font-semibold text-white shadow-2xs max-w-full text-center break-words">
                 {currentPatient.queuePosition === 0
                   ? '🎉 You are Next! Please proceed into room'
                   : `${currentPatient.queuePosition} Patients Ahead • Est. wait ~${currentPatient.estimatedWaitMinutes} mins`}
@@ -1230,14 +1463,15 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
           {/* 3. DESTINATION CARD */}
           <div className="p-4 sm:p-6 rounded-2xl bg-white border border-slate-200/80 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3.5 sm:gap-4 w-full box-border">
             <div className="space-y-1 text-left min-w-0">
-              <div className="text-xs text-sky-600 font-bold uppercase tracking-wider">
-                DESTINATION & SUITE
+              <div className="flex items-center gap-1.5 text-xs text-sky-600 font-bold uppercase tracking-wider">
+                <i className="fa-solid fa-hospital text-slate-400"></i>
+                <span className="truncate">{currentPatient.hospitalName || 'Max Super Specialty Hospital, Mohali'}</span>
               </div>
               <div className="text-base md:text-lg font-extrabold text-slate-900 truncate">
                 {liveDoctor?.name || currentPatient.doctorName}
               </div>
               <div className="text-xs text-slate-500">
-                {currentPatient.opdBlock} | {currentPatient.floor} | <strong className="text-slate-900">{activeRoom}</strong>
+                {currentPatient.department} • {currentPatient.opdBlock} | {currentPatient.floor} | <strong className="text-slate-900">{activeRoom}</strong>
               </div>
             </div>
 
@@ -1278,10 +1512,10 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
             <button
               type="button"
               onClick={handleToggleWheelchairInActiveToken}
-              className={`p-3.5 rounded-2xl border text-xs font-semibold flex items-center justify-center gap-2.5 transition cursor-pointer shadow-2xs ${
+              className={`p-3.5 rounded-2xl border text-xs font-bold flex items-center justify-center gap-2.5 transition cursor-pointer shadow-2xs select-none active:scale-[0.98] ${
                 currentPatient.wheelchairRequest || wheelchairRequested
-                  ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
-                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-800 ring-2 ring-emerald-500/20'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300'
               }`}
             >
               <i className={`fa-solid fa-wheelchair text-sm ${currentPatient.wheelchairRequest || wheelchairRequested ? 'text-emerald-600' : 'text-sky-500'}`}></i>
@@ -1291,7 +1525,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
             <button
               type="button"
               onClick={handleShareWhatsApp}
-              className="p-3.5 rounded-2xl border bg-white border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center justify-center gap-2.5 transition cursor-pointer shadow-2xs"
+              className="p-3.5 rounded-2xl border bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-700 text-xs font-bold flex items-center justify-center gap-2.5 transition cursor-pointer shadow-2xs select-none active:scale-[0.98]"
             >
               <i className="fa-brands fa-whatsapp text-emerald-500 text-base"></i>
               <span>Share with Family</span>
@@ -1300,7 +1534,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
             <button
               type="button"
               onClick={() => setShowNotificationModal(true)}
-              className="p-3.5 rounded-2xl border bg-white border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center justify-center gap-2.5 transition cursor-pointer sm:col-span-2 md:col-span-1 shadow-2xs"
+              className="p-3.5 rounded-2xl border bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-700 text-xs font-bold flex items-center justify-center gap-2.5 transition cursor-pointer sm:col-span-2 md:col-span-1 shadow-2xs select-none active:scale-[0.98]"
             >
               <i className="fa-solid fa-bell text-amber-500 text-sm"></i>
               <span>OPD Announcements</span>
@@ -1472,8 +1706,9 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
               <i className="fa-solid fa-hospital"></i>
             </div>
             <div>
-              <span className="text-[10px] sm:text-xs font-bold tracking-widest text-slate-500 uppercase">
-                ST. JUDE MEDICAL CENTER
+              <span className="text-[10px] sm:text-xs font-bold tracking-widest text-sky-600 uppercase flex items-center justify-center gap-1.5">
+                <i className="fa-solid fa-hospital text-sky-500"></i>
+                <span>{currentPatient.hospitalName?.toUpperCase() || 'MAX SUPER SPECIALTY HOSPITAL, MOHALI'}</span>
               </span>
               <h3 className="text-base sm:text-lg font-extrabold text-slate-900 mt-0.5">OPD Consultation Pass</h3>
               <div className="flex items-center justify-center gap-1.5 mt-1.5 flex-wrap">
@@ -1504,6 +1739,10 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                 </span>
               </div>
               <div className="flex justify-between text-xs pt-1 gap-2">
+                <span className="text-slate-400 shrink-0">Hospital:</span>
+                <span className="font-bold text-sky-700 truncate text-right">{currentPatient.hospitalName || 'Max Super Specialty Hospital, Mohali'}</span>
+              </div>
+              <div className="flex justify-between text-xs gap-2">
                 <span className="text-slate-400 shrink-0">Patient:</span>
                 <span className="font-bold text-slate-900 truncate text-right">{currentPatient.name} ({currentPatient.age}y / {currentPatient.gender})</span>
               </div>

@@ -6,13 +6,13 @@ import { Doctor, Patient, ICMRProtocol, WayfindingStep, PatientUser, PreTestItem
  * Format: [HOSPITAL-YEAR-REGION-SERIAL+CHECKSUM]
  * e.g. "SJMC-2026-DEL-08942A" (St. Jude Medical Center, 2026, Delhi-NCR, Record #08942, Checksum A)
  */
-export const generateAlphanumericUHID = (stateCode: string = 'DEL'): string => {
+export const generateAlphanumericUHID = (stateCode: string = 'PB'): string => {
   const year = new Date().getFullYear();
   const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
   const checksum = letters.charAt(Math.floor(Math.random() * letters.length));
   const randomSerial = Math.floor(10000 + Math.random() * 90000); // 5-digit permanent sequential record
   
-  return `SJMC-${year}-${stateCode}-${randomSerial}${checksum}`;
+  return `MAXM-${year}-${stateCode}-${randomSerial}${checksum}`;
 };
 
 export const INITIAL_PATIENT_USERS: PatientUser[] = [
@@ -100,8 +100,10 @@ export const INITIAL_DOCTORS: Doctor[] = [
     avgConsultationTimeMin: 7,
     todayConsultedCount: 19,
     activeQueueCount: 4,
-    avatar: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=150&auto=format&fit=crop&q=80',
+    avatar: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=300&auto=format&fit=crop&q=80',
     teleconsultAvailable: true,
+    hospitalId: 'hosp-max-mohali',
+    hospitalName: 'Max Super Specialty Hospital, Mohali',
   },
   {
     id: 'doc-2',
@@ -116,8 +118,10 @@ export const INITIAL_DOCTORS: Doctor[] = [
     avgConsultationTimeMin: 10,
     todayConsultedCount: 14,
     activeQueueCount: 3,
-    avatar: 'https://images.unsplash.com/photo-1594824813589-9a28dbd6c627?w=150&auto=format&fit=crop&q=80',
+    avatar: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=300&auto=format&fit=crop&q=80',
     teleconsultAvailable: true,
+    hospitalId: 'hosp-max-mohali',
+    hospitalName: 'Max Super Specialty Hospital, Mohali',
   },
   {
     id: 'doc-3',
@@ -132,8 +136,10 @@ export const INITIAL_DOCTORS: Doctor[] = [
     avgConsultationTimeMin: 6,
     todayConsultedCount: 32,
     activeQueueCount: 6,
-    avatar: 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=150&auto=format&fit=crop&q=80',
+    avatar: 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=300&auto=format&fit=crop&q=80',
     teleconsultAvailable: true,
+    hospitalId: 'hosp-max-mohali',
+    hospitalName: 'Max Super Specialty Hospital, Mohali',
   },
   {
     id: 'doc-4',
@@ -148,8 +154,10 @@ export const INITIAL_DOCTORS: Doctor[] = [
     avgConsultationTimeMin: 8,
     todayConsultedCount: 11,
     activeQueueCount: 2,
-    avatar: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=150&auto=format&fit=crop&q=80',
+    avatar: 'https://images.unsplash.com/photo-1594824813628-9a28dbd6c627?w=300&auto=format&fit=crop&q=80',
     teleconsultAvailable: false,
+    hospitalId: 'hosp-fortis-mohali',
+    hospitalName: 'Fortis Hospital Mohali',
   },
 ];
 
@@ -285,6 +293,7 @@ export const SYMPTOMS_LIST = [
 export const INITIAL_PATIENTS: Patient[] = [
   {
     id: 'pat-1',
+    userId: 'user-3',
     tokenNumber: 'A-40',
     name: 'Vikram Mehta',
     age: 58,
@@ -292,6 +301,9 @@ export const INITIAL_PATIENTS: Patient[] = [
     phone: '+91 98450 11204',
     uhid: 'SJMC-2025-MUM-09901F',
     patientType: 'followup',
+    hospitalId: 'hosp-max-mohali',
+    hospitalName: 'Max Super Specialty Hospital, Mohali',
+    hospitalAddress: 'Near Civil Hospital, Phase 6, Sector 56, Mohali',
     department: 'Orthopedics',
     doctorId: 'doc-1',
     doctorName: 'Dr. Arvind Sharma, MD',
@@ -311,9 +323,12 @@ export const INITIAL_PATIENTS: Patient[] = [
     status: 'in_consultation',
     createdAt: '09:05 AM',
     calledAt: '09:30 AM',
+    appointmentDate: new Date().toISOString().split('T')[0],
+    appointmentTime: '09:30 AM',
   },
   {
     id: 'pat-2',
+    userId: 'user-2',
     tokenNumber: 'A-41',
     name: 'Sunita Roy',
     age: 44,
@@ -321,6 +336,9 @@ export const INITIAL_PATIENTS: Patient[] = [
     phone: '+91 98112 45890',
     uhid: 'SJMC-2026-DEL-04189B',
     patientType: 'followup',
+    hospitalId: 'hosp-max-mohali',
+    hospitalName: 'Max Super Specialty Hospital, Mohali',
+    hospitalAddress: 'Near Civil Hospital, Phase 6, Sector 56, Mohali',
     department: 'Orthopedics',
     doctorId: 'doc-1',
     doctorName: 'Dr. Arvind Sharma, MD',
@@ -339,9 +357,12 @@ export const INITIAL_PATIENTS: Patient[] = [
     estimatedWaitMinutes: 6,
     status: 'waiting',
     createdAt: '09:12 AM',
+    appointmentDate: new Date().toISOString().split('T')[0],
+    appointmentTime: '09:45 AM',
   },
   {
     id: 'pat-3',
+    userId: 'user-1',
     tokenNumber: 'A-42',
     name: 'Rajesh Mukherjee (Demo User)',
     age: 52,
@@ -349,6 +370,9 @@ export const INITIAL_PATIENTS: Patient[] = [
     phone: '+91 98200 55432',
     uhid: 'SJMC-2026-DEL-08942A',
     patientType: 'followup',
+    hospitalId: 'hosp-max-mohali',
+    hospitalName: 'Max Super Specialty Hospital, Mohali',
+    hospitalAddress: 'Near Civil Hospital, Phase 6, Sector 56, Mohali',
     department: 'Orthopedics',
     doctorId: 'doc-1',
     doctorName: 'Dr. Arvind Sharma, MD',
@@ -370,6 +394,8 @@ export const INITIAL_PATIENTS: Patient[] = [
     estimatedWaitMinutes: 14,
     status: 'waiting',
     createdAt: '09:20 AM',
+    appointmentDate: new Date().toISOString().split('T')[0],
+    appointmentTime: '10:00 AM',
     wheelchairRequest: {
       id: 'wc-1',
       patientId: 'pat-3',
@@ -407,6 +433,8 @@ export const INITIAL_PATIENTS: Patient[] = [
     estimatedWaitMinutes: 21,
     status: 'waiting',
     createdAt: '09:25 AM',
+    appointmentDate: new Date().toISOString().split('T')[0],
+    appointmentTime: '10:15 AM',
   },
   {
     id: 'pat-5',
@@ -435,6 +463,8 @@ export const INITIAL_PATIENTS: Patient[] = [
     estimatedWaitMinutes: 0,
     status: 'in_consultation',
     createdAt: '09:10 AM',
+    appointmentDate: new Date().toISOString().split('T')[0],
+    appointmentTime: '09:30 AM',
   },
   {
     id: 'pat-6',
@@ -465,6 +495,8 @@ export const INITIAL_PATIENTS: Patient[] = [
     estimatedWaitMinutes: 0,
     status: 'in_consultation',
     createdAt: '09:15 AM',
+    appointmentDate: new Date().toISOString().split('T')[0],
+    appointmentTime: '09:45 AM',
   }
 ];
 

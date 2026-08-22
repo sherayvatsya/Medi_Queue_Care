@@ -21,14 +21,15 @@ export const exportTokenToPDF = (
     // Hospital Branding
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(13);
-    doc.text('ST. JUDE MEDICAL CENTER', 12, 10);
+    doc.setFontSize(11);
+    const hospitalTitle = (patient.hospitalName || 'Max Super Specialty Hospital, Mohali').toUpperCase();
+    doc.text(hospitalTitle.length > 34 ? hospitalTitle.substring(0, 32) + '...' : hospitalTitle, 12, 10);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.text('OPD TELEMETRY & SMART QUEUE MANAGEMENT SYSTEM', 12, 16);
     doc.setFontSize(7);
-    doc.text('ICMR-Accredited Healthcare Hub DEL-01 • Ground Floor Central Atrium', 12, 21);
+    doc.text('ICMR-Accredited Healthcare Facility • Live Queue Pass', 12, 21);
 
     // Date & Time in top right
     const printDate = new Date().toLocaleString('en-IN', {
@@ -106,6 +107,7 @@ export const exportTokenToPDF = (
       currentY += 5.5;
     };
 
+    addRow('Hospital:', patient.hospitalName || 'Max Super Specialty Hospital, Mohali', true, [14, 165, 233]);
     addRow('Patient Name:', `${patient.name} (${patient.age} yrs / ${patient.gender})`, true);
     addRow('Unique Patient ID:', patient.uhid, true, [2, 132, 199]);
     addRow('Mobile / SMS Phone:', patient.phone);
@@ -179,7 +181,7 @@ export const exportTokenToPDF = (
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.5);
     doc.setTextColor(100, 116, 139);
-    doc.text('Medi-Queue™ Autonomous OPD Telemetry • St. Jude Medical Center', 74, 199, { align: 'center' });
+    doc.text(`Medi-Queue™ Autonomous OPD Telemetry • ${patient.hospitalName || 'Max Super Specialty Hospital, Mohali'}`, 74, 199, { align: 'center' });
 
     // Save PDF directly into device memory / Downloads folder
     const safeName = patient.name.replace(/[^a-zA-Z0-9]/g, '_');
