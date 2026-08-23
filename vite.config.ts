@@ -1,13 +1,14 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
 import express from 'express';
+import path from 'path';
 import { defineConfig, Plugin } from 'vite';
 import { apiRouter } from './src/api/routes';
 
 function expressApiPlugin(): Plugin {
   return {
     name: 'express-api-plugin',
+    apply: 'serve',
     configureServer(server) {
       const app = express();
       app.use(express.json());
@@ -55,8 +56,6 @@ export default defineConfig(() => {
     server: {
       port: 3000,
       host: '0.0.0.0',
-      hmr: process.env.DISABLE_HMR !== 'true',
-      watch: process.env.DISABLE_HMR === 'true' ? null : {},
     },
   };
 });

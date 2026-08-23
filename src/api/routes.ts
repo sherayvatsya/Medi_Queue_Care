@@ -1,7 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
-import { Router, Request, Response } from 'express';
+import express, { type Request, type Response } from 'express';
 
-export const apiRouter = Router();
+export const apiRouter = express.Router();
 
 // Initialize server-side Gemini client with user-agent header
 const ai = new GoogleGenAI({
@@ -95,7 +95,7 @@ const bookedSlotsSet = new Set<string>();
 const heldSlotsMap = new Map<string, { patientId: string; expiresAt: number }>();
 
 // Clean expired slot holds every 60 seconds
-setInterval(() => {
+const cleanupInterval = setInterval(() => {
   const now = Date.now();
   for (const [key, val] of heldSlotsMap.entries()) {
     if (val.expiresAt < now) {
@@ -103,6 +103,11 @@ setInterval(() => {
     }
   }
 }, 60000);
+
+// Ensure background interval does not prevent Node process exit during build/scripts
+if (typeof cleanupInterval === 'object' && cleanupInterval !== null && 'unref' in cleanupInterval) {
+  (cleanupInterval as any).unref();
+}
 
 // Endpoint: Validate Slot Availability
 apiRouter.post('/teleconsult/validate-slot', (req: Request, res: Response) => {
