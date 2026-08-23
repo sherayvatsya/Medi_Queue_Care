@@ -1,0 +1,66 @@
+# Medi-Queue
+
+A hospital appointment and queue management web app that helps patients check in,
+track their position in the queue, and get live hospital navigation help — built to
+reduce long wait times at large hospitals.
+
+## Tech Stack
+
+- **Frontend:** React 19 + TypeScript + Vite + Tailwind CSS
+- **Backend:** Express (serves the built frontend and a small API layer)
+- **Auth & Database:** Firebase Authentication (Google Sign-In) + Firestore
+- **AI:** Google Gemini API (`@google/genai`) for the live hospital maps/grounding assistant
+- **Maps:** Google Maps Platform (`@vis.gl/react-google-maps`)
+
+## Prerequisites
+
+- Node.js 18 or newer
+- npm (or Bun, since this repo includes a `bun.lock`)
+
+## Setup
+
+1. Clone the repo and install dependencies:
+   ```bash
+   git clone <your-repo-url>
+   cd Medi-Queue
+   npm install
+   ```
+2. Copy the example environment file and fill in your own values:
+   ```bash
+   cp .env.example .env
+   ```
+3. Start the dev server:
+   ```bash
+   npm run dev
+   ```
+   The app runs at `http://localhost:3000`.
+
+## Environment Variables
+
+| Variable | Description |
+|---|---|
+| `GEMINI_API_KEY` | Server-side key for Gemini API calls (maps grounding, AI features). Get one from Google AI Studio. |
+| `APP_URL` | The public URL where this app is hosted (used for self-referential links). |
+| `GOOGLE_MAPS_PLATFORM_KEY` | Key for Google Maps Platform, used by the map view. |
+
+Firebase client configuration lives in `firebase-applet-config.json`. This is a
+public client config (standard for Firebase web apps) and is safe to keep in the
+repo — access is controlled by Firestore security rules, not by hiding this file.
+
+## Build & Deploy
+
+```bash
+npm run build   # builds the frontend into dist/
+npm start       # runs the Express server (serves dist/ + API routes)
+```
+
+The app needs a Node runtime to deploy (not static hosting), since the Express
+server handles the Gemini-powered API route. See deployment notes for platform-
+specific steps (Render, Google Cloud Run, etc.).
+
+## Security
+
+- Never commit `.env`, `.env.local`, or any file containing real API keys or secrets.
+- Never commit Firebase service account keys or other credential JSON files.
+- Review `firestore.rules` before deploying — it controls who can read/write
+  patient data in Firestore.

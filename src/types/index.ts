@@ -107,7 +107,7 @@ export interface PreTestItem {
 
 export interface TeleconsultBooking {
   isTeleconsult: boolean;
-  paymentPlan: 'onetime_299' | 'pass_999';
+  paymentPlan: 'onetime_299' | 'pass_999' | 'pass_3999';
   status: 'pending_payment' | 'confirmed' | 'in_call' | 'completed';
   paidAmount: number;
   meetingRoomId: string;
@@ -224,6 +224,7 @@ export interface Doctor {
   teleconsultAvailable?: boolean;
   hospitalId?: string;
   hospitalName?: string;
+  hospitalAddress?: string;
   // Doctor Schedule & Delay Attributes
   delayMinutes?: number;
   delayReason?: string;

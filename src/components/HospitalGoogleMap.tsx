@@ -285,7 +285,7 @@ const MapController: React.FC<{
             position={{ lat: poi.lat, lng: poi.lng }}
             title={poi.name}
             onClick={() => onSelectPoi(poi)}
-            gmpClickable={true}
+            clickable={true}
           >
             <Pin
               background={poi.pinBg}
@@ -306,7 +306,7 @@ const MapController: React.FC<{
             position={place.location}
             title={place.displayName || 'Medical Place'}
             onClick={() => setSelectedNearbyPlace(place)}
-            gmpClickable={true}
+            clickable={true}
           >
             <Pin background="#f59e0b" glyphColor="#ffffff" />
           </AdvancedMarker>

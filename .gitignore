@@ -3,6 +3,26 @@ build/
 dist/
 coverage/
 .DS_Store
+Thumbs.db
 *.log
+
+# Environment variables (never commit real secrets)
+.env
+.env.local
+.env.*.local
 .env*
 !.env.example
+
+# Firebase / credentials
+firebase-debug.log
+.firebase/
+*serviceAccount*.json
+*service-account*.json
+credentials.json
+*-key.json
+*secret*
+*private*
+
+# Editor / OS junk
+.vscode/
+.idea/

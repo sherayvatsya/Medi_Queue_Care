@@ -524,7 +524,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                               wheelchairRequest: {
                                 ...p.wheelchairRequest,
                                 status: 'dispatched',
-                                dispatchedPorterName: 'Ramesh K. (Porter #04)',
+                                porterName: 'Ramesh K. (Porter #04)',
                               },
                             });
                             playHospitalChime();
