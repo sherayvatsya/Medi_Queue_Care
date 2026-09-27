@@ -4,9 +4,7 @@ Medi-Queue is an in-hospital smart queue and AI-assisted care coordination platf
 
 ## Live Demo
 
-**Deployed website:** [Paste your deployed website link here](https://your-deployed-website-url.com)
-
-Replace the placeholder URL above with the public URL of your deployed Medi-Queue application.
+**Deployed website:** https://medi-queue-care.onrender.com/
 
 ## Features
 
