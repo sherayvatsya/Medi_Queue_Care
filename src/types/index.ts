@@ -92,6 +92,56 @@ export interface PatientUser {
   registeredAt: string;
   avatarUrl?: string;
   hasHealthPass?: boolean;
+  medications?: string[];
+  diagnoses?: string[];
+  extractedDocumentType?: string;
+}
+
+export type DocumentType =
+  | 'prescription'
+  | 'lab_report'
+  | 'medical_report'
+  | 'discharge_summary'
+  | 'health_record'
+  | 'other';
+
+export interface ExtractedConfidence {
+  fullName?: number;
+  mobileNumber?: number;
+  email?: number;
+  age?: number;
+  dateOfBirth?: number;
+  gender?: number;
+  bloodGroup?: number;
+  emergencyContactName?: number;
+  emergencyContactPhone?: number;
+  allergies?: number;
+  medicalConditions?: number;
+  medications?: number;
+  diagnoses?: number;
+}
+
+export interface MedicalExtractionResult {
+  fullName: string;
+  mobileNumber: string;
+  email: string;
+  age: number | null;
+  dateOfBirth: string;
+  gender: 'Male' | 'Female' | 'Other' | '';
+  bloodGroup: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  allergies: string[];
+  medicalConditions: string[];
+  medications: string[];
+  diagnoses: string[];
+  documentType: DocumentType;
+  confidence: ExtractedConfidence;
+  isUnclearOrBlurry?: boolean;
+  hasMultiplePatients?: boolean;
+  hasConflicts?: boolean;
+  conflictNotes?: string;
+  documentSummary?: string;
 }
 
 export interface PreTestItem {

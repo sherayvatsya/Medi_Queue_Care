@@ -1,7 +1,123 @@
+import 'dotenv/config';
 import { GoogleGenAI } from '@google/genai';
 import express, { type Request, type Response } from 'express';
+import multer from 'multer';
+import path from 'path';
+import {
+  extractMedicalDocument,
+  ALLOWED_MIME_TYPES,
+  MAX_FILE_SIZE_BYTES,
+} from './services/medicalDocumentExtractor';
 
 export const apiRouter = express.Router();
+
+// Memory-only upload configuration (No patient documents stored on disk or publicly exposed)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: MAX_FILE_SIZE_BYTES, // 10 MB limit
+  },
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const allowedExts = ['.jpg', '.jpeg', '.png', '.pdf'];
+    const mime = file.mimetype.toLowerCase();
+
+    if (!ALLOWED_MIME_TYPES.includes(mime) && !allowedExts.includes(ext)) {
+      return cb(
+        new Error(
+          'Unsupported file format. Please upload a JPG, JPEG, PNG, or PDF medical document.'
+        )
+      );
+    }
+    cb(null, true);
+  },
+});
+
+// AI Medical Document Extraction Endpoint for Smart Registration
+apiRouter.post(
+  '/ai/extract-medical-document',
+  (req, res, next) => {
+    upload.single('document')(req, res, (err: any) => {
+      if (err) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({
+            success: false,
+            error: 'File size exceeds the 10 MB maximum limit. Please upload a smaller file.',
+          });
+        }
+        return res.status(400).json({
+          success: false,
+          error: err.message || 'File upload validation failed.',
+        });
+      }
+      next();
+    });
+  },
+  async (req: Request, res: Response) => {
+    try {
+      const consent = req.body.consent;
+      if (consent !== 'true' && consent !== true) {
+        return res.status(400).json({
+          success: false,
+          error:
+            'Patient consent is strictly required to process and extract medical document information.',
+        });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          error:
+            'No medical document uploaded. Please attach a prescription, lab report, or discharge summary.',
+        });
+      }
+
+      // Security: Sanitize file name, do not persist to disk, do not log patient private details
+      const sanitizedFilename = path
+        .basename(req.file.originalname)
+        .replace(/[^a-zA-Z0-9._-]/g, '_');
+
+      const extractedData = await extractMedicalDocument(
+        req.file.buffer,
+        req.file.mimetype,
+        sanitizedFilename
+      );
+
+      return res.json({
+        success: true,
+        data: extractedData,
+        message:
+          'Information extracted from your document. Please verify all details before continuing.',
+      });
+    } catch (error: any) {
+      console.error('Document extraction error:', error?.message || 'Extraction failed');
+      let friendlyError =
+        error?.message ||
+        "We couldn't reliably read this document. Please upload a clearer image or enter your details manually.";
+
+      try {
+        const parsed = JSON.parse(friendlyError);
+        if (parsed?.error?.message) {
+          friendlyError = parsed.error.message;
+        }
+      } catch {}
+
+      if (
+        friendlyError.includes('503') ||
+        friendlyError.includes('high demand') ||
+        friendlyError.includes('UNAVAILABLE')
+      ) {
+        friendlyError =
+          'The hospital AI service is currently experiencing high demand. Please click "Analyze Document & Auto-Fill" again, or enter your details manually below.';
+      }
+
+      return res.status(500).json({
+        success: false,
+        error: friendlyError,
+      });
+    }
+  }
+);
 
 // Initialize server-side Gemini client with user-agent header
 const ai = new GoogleGenAI({

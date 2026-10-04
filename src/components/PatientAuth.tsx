@@ -1,9 +1,15 @@
 import React, { useState } from 'react';
-import { PatientUser } from '../types';
+import {
+  PatientUser,
+  MedicalExtractionResult,
+  ExtractedConfidence,
+} from '../types';
 import { INITIAL_PATIENT_USERS, generateAlphanumericUHID } from '../data/mockData';
 import { playHospitalChime, playUrgentAlertSound } from '../utils/audio';
 import { signInWithGoogle, saveUserProfileToFirestore } from '../firebase';
 import confetti from 'canvas-confetti';
+import { SmartDocumentUpload } from './SmartDocumentUpload';
+import { ExtractedFieldIndicator } from './ExtractedFieldIndicator';
 
 interface PatientAuthProps {
   onLoginSuccess: (user: PatientUser) => void;
@@ -44,6 +50,201 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
   const [signupPin, setSignupPin] = useState<string>('1234');
   const [agreedTerms, setAgreedTerms] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string>('');
+
+  // Smart Registration Extraction State
+  const [fieldConfidence, setFieldConfidence] = useState<ExtractedConfidence>({});
+  const [extractedFields, setExtractedFields] = useState<Record<string, boolean>>({});
+  const [extractedMedications, setExtractedMedications] = useState<string[]>([]);
+  const [extractedDiagnoses, setExtractedDiagnoses] = useState<string[]>([]);
+  const [extractedDocType, setExtractedDocType] = useState<string>('');
+  const [extractionBannerVisible, setExtractionBannerVisible] = useState<boolean>(false);
+
+  // Auto-population handler following strict clinical & confidence guidelines
+  const handleDocumentExtracted = (data: MedicalExtractionResult) => {
+    const newExtracted: Record<string, boolean> = {};
+    const conf = data.confidence || {};
+    setFieldConfidence(conf);
+
+    // 1. Full Legal Name (Populate if >= 0.60, or high >= 0.85)
+    if (data.fullName && (conf.fullName === undefined || conf.fullName >= 0.6)) {
+      setSignupName(data.fullName);
+      newExtracted.fullName = true;
+    }
+
+    // 2. Mobile Number (Sanitize and populate)
+    if (data.mobileNumber && (conf.mobileNumber === undefined || conf.mobileNumber >= 0.6)) {
+      setSignupPhone(data.mobileNumber.replace(/[^\d+ ]/g, '').trim());
+      newExtracted.mobileNumber = true;
+    }
+
+    // 3. Email Address
+    if (data.email && (conf.email === undefined || conf.email >= 0.6)) {
+      setSignupEmail(data.email.trim());
+      newExtracted.email = true;
+    }
+
+    // 4. Age
+    if (typeof data.age === 'number' && !isNaN(data.age) && (conf.age === undefined || conf.age >= 0.6)) {
+      setSignupAge(data.age);
+      newExtracted.age = true;
+    }
+
+    // 5. Gender
+    if (data.gender && ['Male', 'Female', 'Other'].includes(data.gender) && (conf.gender === undefined || conf.gender >= 0.6)) {
+      setSignupGender(data.gender as 'Male' | 'Female' | 'Other');
+      newExtracted.gender = true;
+    }
+
+    // 6. Blood Group (Normalize)
+    if (data.bloodGroup && (conf.bloodGroup === undefined || conf.bloodGroup >= 0.6)) {
+      const rawBg = data.bloodGroup.toUpperCase().replace(/\s+/g, '');
+      const validBgs = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
+      let matchedBg = validBgs.find((b) => b === rawBg);
+      if (!matchedBg) {
+        if (rawBg.includes('O') && rawBg.includes('+')) matchedBg = 'O+';
+        else if (rawBg.includes('O') && rawBg.includes('-')) matchedBg = 'O-';
+        else if (rawBg.includes('AB') && rawBg.includes('+')) matchedBg = 'AB+';
+        else if (rawBg.includes('AB') && rawBg.includes('-')) matchedBg = 'AB-';
+        else if (rawBg.includes('A') && rawBg.includes('+')) matchedBg = 'A+';
+        else if (rawBg.includes('A') && rawBg.includes('-')) matchedBg = 'A-';
+        else if (rawBg.includes('B') && rawBg.includes('+')) matchedBg = 'B+';
+        else if (rawBg.includes('B') && rawBg.includes('-')) matchedBg = 'B-';
+      }
+      if (matchedBg) {
+        setSignupBloodGroup(matchedBg);
+        newExtracted.bloodGroup = true;
+      }
+    }
+
+    // 7. Emergency Contact Name
+    if (data.emergencyContactName && (conf.emergencyContactName === undefined || conf.emergencyContactName >= 0.6)) {
+      setSignupEmergencyName(data.emergencyContactName);
+      newExtracted.emergencyContactName = true;
+    }
+
+    // 8. Emergency Contact Phone
+    if (data.emergencyContactPhone && (conf.emergencyContactPhone === undefined || conf.emergencyContactPhone >= 0.6)) {
+      setSignupEmergencyPhone(data.emergencyContactPhone.replace(/[^\d+ ]/g, '').trim());
+      newExtracted.emergencyContactPhone = true;
+    }
+
+    // 9. Known Allergies
+    if (data.allergies && data.allergies.length > 0 && (conf.allergies === undefined || conf.allergies >= 0.6)) {
+      const stdAllergies = ['Penicillin', 'Sulfa Drugs', 'Aspirin/NSAIDs', 'Latex', 'Dust / Pollen', 'Contrast Dye'];
+      const resolvedAllergies: string[] = [];
+      data.allergies.forEach((alg) => {
+        const trimmed = alg.trim();
+        const lower = trimmed.toLowerCase();
+        if (lower === 'none' || lower === 'nkda' || lower.includes('no known')) {
+          resolvedAllergies.push('None');
+        } else {
+          const found = stdAllergies.find((s) => s.toLowerCase() === lower || lower.includes(s.toLowerCase()));
+          if (found) {
+            if (!resolvedAllergies.includes(found)) resolvedAllergies.push(found);
+          } else {
+            if (!resolvedAllergies.includes(trimmed)) resolvedAllergies.push(trimmed);
+          }
+        }
+      });
+      if (resolvedAllergies.length > 0) {
+        setSelectedAllergies(resolvedAllergies);
+        newExtracted.allergies = true;
+      }
+    }
+
+    // 10. Medical Conditions / Pre-existing History
+    if (data.medicalConditions && data.medicalConditions.length > 0 && (conf.medicalConditions === undefined || conf.medicalConditions >= 0.6)) {
+      const stdConditions = [
+        { key: 'Hypertension (High BP)', match: ['hypertens', 'high bp', 'blood pressure', 'htn'] },
+        { key: 'Type 2 Diabetes', match: ['diabetes', 't2d', 'dm2', 'type 2', 'diabetic'] },
+        { key: 'Asthma / COPD', match: ['asthma', 'copd', 'bronchial', 'respiratory'] },
+        { key: 'Thyroid Disorder', match: ['thyroid', 'hypothyroid', 'hyperthyroid'] },
+        { key: 'Heart Disease', match: ['heart', 'cardiac', 'cad', 'chd', 'angina'] },
+        { key: 'Arthritis', match: ['arthritis', 'osteoarthritis', 'rheumatoid'] },
+      ];
+      const resolvedConditions: string[] = [];
+      data.medicalConditions.forEach((c) => {
+        const lower = c.trim().toLowerCase();
+        if (lower === 'none' || lower.includes('no prior') || lower.includes('nil')) {
+          resolvedConditions.push('None');
+        } else {
+          const matched = stdConditions.find((item) => item.match.some((m) => lower.includes(m)));
+          if (matched) {
+            if (!resolvedConditions.includes(matched.key)) resolvedConditions.push(matched.key);
+          } else {
+            if (!resolvedConditions.includes(c.trim())) resolvedConditions.push(c.trim());
+          }
+        }
+      });
+      if (resolvedConditions.length > 0) {
+        setSelectedConditions(resolvedConditions);
+        newExtracted.medicalConditions = true;
+      }
+    }
+
+    if (data.medications) {
+      setExtractedMedications(data.medications);
+    }
+    if (data.diagnoses) {
+      setExtractedDiagnoses(data.diagnoses);
+    }
+    if (data.documentType) {
+      setExtractedDocType(data.documentType);
+    }
+
+    setExtractedFields(newExtracted);
+    setExtractionBannerVisible(true);
+  };
+
+  const handleClearExtractedData = () => {
+    setFieldConfidence({});
+    setExtractedFields({});
+    setExtractedMedications([]);
+    setExtractedDiagnoses([]);
+    setExtractedDocType('');
+    setExtractionBannerVisible(false);
+    setSignupName('');
+    setSignupPhone('');
+    setSignupEmail('');
+    setSignupAge(35);
+    setSignupGender('Male');
+    setSignupBloodGroup('O+');
+    setSignupEmergencyName('');
+    setSignupEmergencyPhone('');
+    setSelectedAllergies([]);
+    setSelectedConditions([]);
+  };
+
+  const handleClearSingleField = (field: string) => {
+    setExtractedFields((prev) => {
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+    setFieldConfidence((prev) => {
+      const next = { ...prev };
+      delete (next as any)[field];
+      return next;
+    });
+    if (field === 'fullName') setSignupName('');
+    else if (field === 'mobileNumber') setSignupPhone('');
+    else if (field === 'email') setSignupEmail('');
+    else if (field === 'emergencyContactName') setSignupEmergencyName('');
+    else if (field === 'emergencyContactPhone') setSignupEmergencyPhone('');
+    else if (field === 'allergies') setSelectedAllergies([]);
+    else if (field === 'medicalConditions') setSelectedConditions([]);
+  };
+
+  const getFieldBorderClass = (fieldName: string) => {
+    if (!extractedFields[fieldName]) {
+      return 'border-[#cbd5e1]';
+    }
+    const conf = (fieldConfidence as any)[fieldName];
+    if (conf !== undefined && conf < 0.85) {
+      return 'border-amber-400 bg-amber-50/20'; // Medium confidence (< 0.85)
+    }
+    return 'border-emerald-400 bg-emerald-50/20'; // High confidence (>= 0.85)
+  };
 
   const notify = (title: string, desc: string, type: 'info' | 'success' | 'urgent' = 'info') => {
     if (onShowToast) {
@@ -185,6 +386,9 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
       allergies: selectedAllergies,
       chronicConditions: selectedConditions,
       registeredAt: new Date().toISOString().split('T')[0],
+      medications: extractedMedications.length > 0 ? extractedMedications : undefined,
+      diagnoses: extractedDiagnoses.length > 0 ? extractedDiagnoses : undefined,
+      extractedDocumentType: extractedDocType || undefined,
     };
 
     saveUserProfileToFirestore(newPatientUser);
@@ -568,280 +772,421 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
 
           {/* MODE 3: SIGN UP (NEW PATIENT REGISTRATION) */}
           {authMode === 'signup' && (
-            <form onSubmit={handleSignUpSubmit} className="space-y-4">
-              <div className="p-3 bg-[#e0f2fe] border border-[#bae6fd] rounded-xl text-xs text-[#0369a1] flex items-center gap-2">
-                <i className="fa-solid fa-circle-info text-[#0ea5e9] shrink-0"></i>
-                <span>
-                  First-time visit? Registering creates your official government & hospital Electronic Health UHID.
-                </span>
-              </div>
+            <div className="space-y-5">
+              {/* SMART REGISTRATION UPLOAD COMPONENT */}
+              <SmartDocumentUpload
+                onExtractionSuccess={handleDocumentExtracted}
+                onClearData={handleClearExtractedData}
+                onShowToast={notify}
+              />
 
-              {/* Row 1: Name & Phone */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-[#0f172a] mb-1">
-                    Full Legal Name <span className="text-[#ef4444]">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={signupName}
-                    onChange={(e) => setSignupName(e.target.value)}
-                    placeholder="e.g. Ramesh Chandra"
-                    className="w-full px-3 py-2 rounded-lg border border-[#cbd5e1] text-xs sm:text-sm focus:outline-hidden focus:border-[#0ea5e9] focus:ring-2 focus:ring-[#0ea5e9]/20"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-[#0f172a] mb-1">
-                    Mobile Number <span className="text-[#ef4444]">*</span>
-                  </label>
-                  <input
-                    type="tel"
-                    value={signupPhone}
-                    onChange={(e) => setSignupPhone(e.target.value)}
-                    placeholder="e.g. 98200 12345"
-                    className="w-full px-3 py-2 rounded-lg border border-[#cbd5e1] text-xs sm:text-sm focus:outline-hidden focus:border-[#0ea5e9] focus:ring-2 focus:ring-[#0ea5e9]/20"
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* Row 2: Email, Age, Gender, Blood Group */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                <div className="col-span-2 sm:col-span-1">
-                  <label className="block text-xs font-bold text-[#0f172a] mb-1">
-                    Email Address
-                  </label>
-                  <input
-                    type="email"
-                    value={signupEmail}
-                    onChange={(e) => setSignupEmail(e.target.value)}
-                    placeholder="name@mail.com"
-                    className="w-full px-3 py-2 rounded-lg border border-[#cbd5e1] text-xs focus:outline-hidden focus:border-[#0ea5e9]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-[#0f172a] mb-1">
-                    Age (Years) <span className="text-[#ef4444]">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={120}
-                    value={signupAge}
-                    onChange={(e) => setSignupAge(Number(e.target.value))}
-                    className="w-full px-3 py-2 rounded-lg border border-[#cbd5e1] text-xs focus:outline-hidden focus:border-[#0ea5e9]"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-[#0f172a] mb-1">
-                    Gender <span className="text-[#ef4444]">*</span>
-                  </label>
-                  <select
-                    value={signupGender}
-                    onChange={(e) => setSignupGender(e.target.value as 'Male' | 'Female' | 'Other')}
-                    className="w-full px-2 py-2 rounded-lg border border-[#cbd5e1] text-xs focus:outline-hidden focus:border-[#0ea5e9]"
-                  >
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-[#0f172a] mb-1">
-                    Blood Group
-                  </label>
-                  <select
-                    value={signupBloodGroup}
-                    onChange={(e) => setSignupBloodGroup(e.target.value)}
-                    className="w-full px-2 py-2 rounded-lg border border-[#cbd5e1] text-xs focus:outline-hidden focus:border-[#0ea5e9]"
-                  >
-                    {['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'].map((bg) => (
-                      <option key={bg} value={bg}>
-                        {bg}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Row 3: Emergency Contact */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                <div>
-                  <label className="block text-xs font-bold text-[#0f172a] mb-1">
-                    Emergency Contact Name
-                  </label>
-                  <input
-                    type="text"
-                    value={signupEmergencyName}
-                    onChange={(e) => setSignupEmergencyName(e.target.value)}
-                    placeholder="e.g. Suman Chandra (Spouse)"
-                    className="w-full px-3 py-2 rounded-lg border border-[#cbd5e1] text-xs focus:outline-hidden focus:border-[#0ea5e9]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-[#0f172a] mb-1">
-                    Emergency Contact Phone
-                  </label>
-                  <input
-                    type="tel"
-                    value={signupEmergencyPhone}
-                    onChange={(e) => setSignupEmergencyPhone(e.target.value)}
-                    placeholder="e.g. +91 98200 99887"
-                    className="w-full px-3 py-2 rounded-lg border border-[#cbd5e1] text-xs focus:outline-hidden focus:border-[#0ea5e9]"
-                  />
-                </div>
-              </div>
-
-              {/* Row 4: Medical Background & Allergies */}
-              <div className="space-y-2 pt-1">
-                <label className="block text-xs font-bold text-[#0f172a]">
-                  Known Drug / Food Allergies (Select all that apply)
-                </label>
-                <div className="flex flex-wrap gap-1.5">
-                  {['Penicillin', 'Sulfa Drugs', 'Aspirin/NSAIDs', 'Latex', 'Dust / Pollen', 'Contrast Dye', 'None'].map((item) => {
-                    const isSel = selectedAllergies.includes(item);
-                    return (
-                      <button
-                        key={item}
-                        type="button"
-                        onClick={() => toggleAllergy(item)}
-                        className={`px-2.5 py-1 rounded-full text-xs font-medium border transition cursor-pointer ${
-                          isSel
-                            ? 'bg-[#fee2e2] text-[#991b1b] border-[#ef4444] font-bold'
-                            : 'bg-[#f8fafc] text-[#64748b] border-[#e2e8f0] hover:bg-[#f1f5f9]'
-                        }`}
-                      >
-                        {isSel ? '✓ ' : '+ '}
-                        {item}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Row 5: Chronic Conditions */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="block text-xs font-bold text-[#0f172a]">
-                    Pre-existing Conditions / Medical History
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowCustomConditionInput(!showCustomConditionInput)}
-                    className="text-[11px] text-[#0ea5e9] hover:underline font-bold flex items-center gap-1 cursor-pointer"
-                  >
-                    <i className="fa-solid fa-keyboard text-[10px]"></i>
-                    <span>{showCustomConditionInput ? 'Hide manual input' : 'Type manually'}</span>
-                  </button>
-                </div>
-
-                <div className="flex flex-wrap gap-1.5">
-                  {['Hypertension (High BP)', 'Type 2 Diabetes', 'Asthma / COPD', 'Thyroid Disorder', 'Heart Disease', 'Arthritis', 'None'].map((item) => {
-                    const isSel = selectedConditions.includes(item);
-                    return (
-                      <button
-                        key={item}
-                        type="button"
-                        onClick={() => toggleCondition(item)}
-                        className={`px-2.5 py-1 rounded-full text-xs font-medium border transition cursor-pointer ${
-                          isSel
-                            ? 'bg-[#e0f2fe] text-[#0369a1] border-[#0ea5e9] font-bold'
-                            : 'bg-[#f8fafc] text-[#64748b] border-[#e2e8f0] hover:bg-[#f1f5f9]'
-                        }`}
-                      >
-                        {isSel ? '✓ ' : '+ '}
-                        {item}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Option to manually type condition when 'None' or 'Type manually' is clicked */}
-                {showCustomConditionInput && (
-                  <div className="p-2.5 bg-[#f0f9ff] border border-[#bae6fd] rounded-xl space-y-1.5 animate-in fade-in duration-200">
-                    <label className="block text-[11px] font-bold text-[#0369a1] flex items-center gap-1.5">
-                      <i className="fa-solid fa-pen-to-square text-[#0ea5e9]"></i>
-                      <span>Type Custom / Other Pre-existing Condition:</span>
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        value={customCondition}
-                        onChange={(e) => setCustomCondition(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            handleAddCustomCondition();
-                          }
-                        }}
-                        placeholder="e.g. Migraine, Kidney Stones, Acid Reflux..."
-                        className="flex-1 px-3 py-1.5 text-xs bg-white rounded-lg border border-[#bae6fd] focus:border-[#0ea5e9] focus:ring-1 focus:ring-[#0ea5e9] focus:outline-hidden"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleAddCustomCondition()}
-                        className="px-3 py-1.5 bg-[#0ea5e9] hover:bg-[#0284c7] text-white text-xs font-bold rounded-lg transition shadow-2xs cursor-pointer shrink-0"
-                      >
-                        Add
-                      </button>
+              {/* Extraction Success Notice Banner */}
+              {extractionBannerVisible && (
+                <div className="p-3.5 bg-emerald-50 border border-emerald-300 rounded-xl text-xs text-emerald-950 flex items-center justify-between gap-3 shadow-2xs animate-in fade-in duration-300">
+                  <div className="flex items-start gap-2.5">
+                    <i className="fa-solid fa-circle-check text-emerald-600 text-sm mt-0.5 shrink-0"></i>
+                    <div>
+                      <p className="font-bold text-emerald-950">
+                        Information extracted from your document.
+                      </p>
+                      <p className="text-emerald-800 text-[11px] mt-0.5">
+                        Please review the highlighted information before continuing. Every field is editable.
+                      </p>
                     </div>
                   </div>
-                )}
+                  <button
+                    type="button"
+                    onClick={handleClearExtractedData}
+                    className="px-2.5 py-1 bg-white hover:bg-slate-50 border border-emerald-300 text-emerald-800 rounded-lg text-[11px] font-bold transition cursor-pointer shrink-0 shadow-2xs"
+                  >
+                    Clear Extracted Data
+                  </button>
+                </div>
+              )}
 
-                {/* Active non-standard or selected condition tags */}
-                {selectedConditions.filter((c) => c !== 'None').length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    {selectedConditions
-                      .filter((c) => c !== 'None')
-                      .map((c) => (
-                        <span
-                          key={c}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#e0f2fe] text-[#0369a1] font-semibold text-[11px] border border-[#bae6fd]"
-                        >
-                          <span>{c}</span>
-                          <button
-                            type="button"
-                            onClick={() => toggleCondition(c)}
-                            className="text-[#0284c7] hover:text-[#0369a1] cursor-pointer text-xs"
-                          >
-                            ×
-                          </button>
-                        </span>
-                      ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Consent & Security */}
-              <div className="p-3 bg-[#f8fafc] rounded-xl border border-[#e2e8f0] space-y-2">
-                <label className="flex items-start gap-2.5 cursor-pointer text-xs text-[#334155]">
-                  <input
-                    type="checkbox"
-                    checked={agreedTerms}
-                    onChange={(e) => setAgreedTerms(e.target.checked)}
-                    className="w-4 h-4 rounded text-[#0ea5e9] accent-[#0ea5e9] mt-0.5 cursor-pointer"
-                  />
+              <form id="registration-fields" onSubmit={handleSignUpSubmit} className="space-y-4">
+                <div className="p-3 bg-[#e0f2fe] border border-[#bae6fd] rounded-xl text-xs text-[#0369a1] flex items-center gap-2">
+                  <i className="fa-solid fa-circle-info text-[#0ea5e9] shrink-0"></i>
                   <span>
-                    I consent to digital triage, Electronic Health Record (EHR) generation, and real-time OPD queue status alerts.
+                    First-time visit? Registering creates your official government & hospital Electronic Health UHID.
                   </span>
-                </label>
-              </div>
+                </div>
 
-              <button
-                type="submit"
-                className="w-full py-3.5 rounded-xl bg-[#0ea5e9] hover:bg-[#0284c7] text-white font-bold text-xs sm:text-sm shadow-md flex items-center justify-center gap-2 transition cursor-pointer"
-              >
-                <i className="fa-solid fa-user-check"></i>
-                <span>Complete Registration & Proceed to Appointment Register</span>
-              </button>
-            </form>
+                {/* Row 1: Name & Phone */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-bold text-[#0f172a]">
+                        Full Legal Name <span className="text-[#ef4444]">*</span>
+                      </label>
+                    </div>
+                    <input
+                      type="text"
+                      value={signupName}
+                      onChange={(e) => setSignupName(e.target.value)}
+                      placeholder="e.g. Ramesh Chandra"
+                      className={`w-full px-3 py-2 rounded-lg border ${getFieldBorderClass(
+                        'fullName'
+                      )} text-xs sm:text-sm focus:outline-hidden focus:border-[#0ea5e9] focus:ring-2 focus:ring-[#0ea5e9]/20 transition`}
+                      required
+                    />
+                    <ExtractedFieldIndicator
+                      confidence={fieldConfidence.fullName}
+                      fieldName="Full Legal Name"
+                      isExtracted={Boolean(extractedFields.fullName)}
+                      onClearField={() => handleClearSingleField('fullName')}
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-bold text-[#0f172a]">
+                        Mobile Number <span className="text-[#ef4444]">*</span>
+                      </label>
+                    </div>
+                    <input
+                      type="tel"
+                      value={signupPhone}
+                      onChange={(e) => setSignupPhone(e.target.value)}
+                      placeholder="e.g. 98200 12345"
+                      className={`w-full px-3 py-2 rounded-lg border ${getFieldBorderClass(
+                        'mobileNumber'
+                      )} text-xs sm:text-sm focus:outline-hidden focus:border-[#0ea5e9] focus:ring-2 focus:ring-[#0ea5e9]/20 transition`}
+                      required
+                    />
+                    <ExtractedFieldIndicator
+                      confidence={fieldConfidence.mobileNumber}
+                      fieldName="Mobile Number"
+                      isExtracted={Boolean(extractedFields.mobileNumber)}
+                      onClearField={() => handleClearSingleField('mobileNumber')}
+                    />
+                  </div>
+                </div>
+
+                {/* Row 2: Email, Age, Gender, Blood Group */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div className="col-span-2 sm:col-span-1">
+                    <label className="block text-xs font-bold text-[#0f172a] mb-1">
+                      Email Address
+                    </label>
+                    <input
+                      type="email"
+                      value={signupEmail}
+                      onChange={(e) => setSignupEmail(e.target.value)}
+                      placeholder="name@mail.com"
+                      className={`w-full px-3 py-2 rounded-lg border ${getFieldBorderClass(
+                        'email'
+                      )} text-xs focus:outline-hidden focus:border-[#0ea5e9] transition`}
+                    />
+                    <ExtractedFieldIndicator
+                      confidence={fieldConfidence.email}
+                      fieldName="Email Address"
+                      isExtracted={Boolean(extractedFields.email)}
+                      onClearField={() => handleClearSingleField('email')}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-[#0f172a] mb-1">
+                      Age (Years) <span className="text-[#ef4444]">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={120}
+                      value={signupAge}
+                      onChange={(e) => setSignupAge(Number(e.target.value))}
+                      className={`w-full px-3 py-2 rounded-lg border ${getFieldBorderClass(
+                        'age'
+                      )} text-xs focus:outline-hidden focus:border-[#0ea5e9] transition`}
+                      required
+                    />
+                    <ExtractedFieldIndicator
+                      confidence={fieldConfidence.age}
+                      fieldName="Age"
+                      isExtracted={Boolean(extractedFields.age)}
+                      onClearField={() => handleClearSingleField('age')}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-[#0f172a] mb-1">
+                      Gender <span className="text-[#ef4444]">*</span>
+                    </label>
+                    <select
+                      value={signupGender}
+                      onChange={(e) =>
+                        setSignupGender(e.target.value as 'Male' | 'Female' | 'Other')
+                      }
+                      className={`w-full px-2 py-2 rounded-lg border ${getFieldBorderClass(
+                        'gender'
+                      )} text-xs focus:outline-hidden focus:border-[#0ea5e9] transition`}
+                    >
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                    <ExtractedFieldIndicator
+                      confidence={fieldConfidence.gender}
+                      fieldName="Gender"
+                      isExtracted={Boolean(extractedFields.gender)}
+                      onClearField={() => handleClearSingleField('gender')}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-[#0f172a] mb-1">
+                      Blood Group
+                    </label>
+                    <select
+                      value={signupBloodGroup}
+                      onChange={(e) => setSignupBloodGroup(e.target.value)}
+                      className={`w-full px-2 py-2 rounded-lg border ${getFieldBorderClass(
+                        'bloodGroup'
+                      )} text-xs focus:outline-hidden focus:border-[#0ea5e9] transition`}
+                    >
+                      {['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'].map((bg) => (
+                        <option key={bg} value={bg}>
+                          {bg}
+                        </option>
+                      ))}
+                    </select>
+                    <ExtractedFieldIndicator
+                      confidence={fieldConfidence.bloodGroup}
+                      fieldName="Blood Group"
+                      isExtracted={Boolean(extractedFields.bloodGroup)}
+                      onClearField={() => handleClearSingleField('bloodGroup')}
+                    />
+                  </div>
+                </div>
+
+                {/* Row 3: Emergency Contact */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="block text-xs font-bold text-[#0f172a] mb-1">
+                      Emergency Contact Name
+                    </label>
+                    <input
+                      type="text"
+                      value={signupEmergencyName}
+                      onChange={(e) => setSignupEmergencyName(e.target.value)}
+                      placeholder="e.g. Suman Chandra (Spouse)"
+                      className={`w-full px-3 py-2 rounded-lg border ${getFieldBorderClass(
+                        'emergencyContactName'
+                      )} text-xs focus:outline-hidden focus:border-[#0ea5e9] transition`}
+                    />
+                    <ExtractedFieldIndicator
+                      confidence={fieldConfidence.emergencyContactName}
+                      fieldName="Emergency Contact Name"
+                      isExtracted={Boolean(extractedFields.emergencyContactName)}
+                      onClearField={() => handleClearSingleField('emergencyContactName')}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-[#0f172a] mb-1">
+                      Emergency Contact Phone
+                    </label>
+                    <input
+                      type="tel"
+                      value={signupEmergencyPhone}
+                      onChange={(e) => setSignupEmergencyPhone(e.target.value)}
+                      placeholder="e.g. +91 98200 99887"
+                      className={`w-full px-3 py-2 rounded-lg border ${getFieldBorderClass(
+                        'emergencyContactPhone'
+                      )} text-xs focus:outline-hidden focus:border-[#0ea5e9] transition`}
+                    />
+                    <ExtractedFieldIndicator
+                      confidence={fieldConfidence.emergencyContactPhone}
+                      fieldName="Emergency Contact Phone"
+                      isExtracted={Boolean(extractedFields.emergencyContactPhone)}
+                      onClearField={() => handleClearSingleField('emergencyContactPhone')}
+                    />
+                  </div>
+                </div>
+
+                {/* Row 4: Medical Background & Allergies */}
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-[#0f172a]">
+                      Known Drug / Food Allergies (Select all that apply)
+                    </label>
+                    <ExtractedFieldIndicator
+                      confidence={fieldConfidence.allergies}
+                      fieldName="Allergies"
+                      isExtracted={Boolean(extractedFields.allergies)}
+                      onClearField={() => handleClearSingleField('allergies')}
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      'Penicillin',
+                      'Sulfa Drugs',
+                      'Aspirin/NSAIDs',
+                      'Latex',
+                      'Dust / Pollen',
+                      'Contrast Dye',
+                      'None',
+                    ].map((item) => {
+                      const isSel = selectedAllergies.includes(item);
+                      return (
+                        <button
+                          key={item}
+                          type="button"
+                          onClick={() => toggleAllergy(item)}
+                          className={`px-2.5 py-1 rounded-full text-xs font-medium border transition cursor-pointer ${
+                            isSel
+                              ? 'bg-[#fee2e2] text-[#991b1b] border-[#ef4444] font-bold'
+                              : 'bg-[#f8fafc] text-[#64748b] border-[#e2e8f0] hover:bg-[#f1f5f9]'
+                          }`}
+                        >
+                          {isSel ? '✓ ' : '+ '}
+                          {item}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Row 5: Chronic Conditions */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <label className="block text-xs font-bold text-[#0f172a]">
+                        Pre-existing Conditions / Medical History
+                      </label>
+                      <ExtractedFieldIndicator
+                        confidence={fieldConfidence.medicalConditions}
+                        fieldName="Conditions"
+                        isExtracted={Boolean(extractedFields.medicalConditions)}
+                        onClearField={() => handleClearSingleField('medicalConditions')}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setShowCustomConditionInput(!showCustomConditionInput)
+                      }
+                      className="text-[11px] text-[#0ea5e9] hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <i className="fa-solid fa-keyboard text-[10px]"></i>
+                      <span>
+                        {showCustomConditionInput
+                          ? 'Hide manual input'
+                          : 'Type manually'}
+                      </span>
+                    </button>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      'Hypertension (High BP)',
+                      'Type 2 Diabetes',
+                      'Asthma / COPD',
+                      'Thyroid Disorder',
+                      'Heart Disease',
+                      'Arthritis',
+                      'None',
+                    ].map((item) => {
+                      const isSel = selectedConditions.includes(item);
+                      return (
+                        <button
+                          key={item}
+                          type="button"
+                          onClick={() => toggleCondition(item)}
+                          className={`px-2.5 py-1 rounded-full text-xs font-medium border transition cursor-pointer ${
+                            isSel
+                              ? 'bg-[#e0f2fe] text-[#0369a1] border-[#0ea5e9] font-bold'
+                              : 'bg-[#f8fafc] text-[#64748b] border-[#e2e8f0] hover:bg-[#f1f5f9]'
+                          }`}
+                        >
+                          {isSel ? '✓ ' : '+ '}
+                          {item}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Option to manually type condition when 'None' or 'Type manually' is clicked */}
+                  {showCustomConditionInput && (
+                    <div className="p-2.5 bg-[#f0f9ff] border border-[#bae6fd] rounded-xl space-y-1.5 animate-in fade-in duration-200">
+                      <label className="block text-[11px] font-bold text-[#0369a1] flex items-center gap-1.5">
+                        <i className="fa-solid fa-pen-to-square text-[#0ea5e9]"></i>
+                        <span>Type Custom / Other Pre-existing Condition:</span>
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={customCondition}
+                          onChange={(e) => setCustomCondition(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleAddCustomCondition();
+                            }
+                          }}
+                          placeholder="e.g. Migraine, Kidney Stones, Acid Reflux..."
+                          className="flex-1 px-3 py-1.5 text-xs bg-white rounded-lg border border-[#bae6fd] focus:border-[#0ea5e9] focus:ring-1 focus:ring-[#0ea5e9] focus:outline-hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleAddCustomCondition()}
+                          className="px-3 py-1.5 bg-[#0ea5e9] hover:bg-[#0284c7] text-white text-xs font-bold rounded-lg transition shadow-2xs cursor-pointer shrink-0"
+                        >
+                          Add
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Active non-standard or selected condition tags */}
+                  {selectedConditions.filter((c) => c !== 'None').length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {selectedConditions
+                        .filter((c) => c !== 'None')
+                        .map((c) => (
+                          <span
+                            key={c}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#e0f2fe] text-[#0369a1] font-semibold text-[11px] border border-[#bae6fd]"
+                          >
+                            <span>{c}</span>
+                            <button
+                              type="button"
+                              onClick={() => toggleCondition(c)}
+                              className="text-[#0284c7] hover:text-[#0369a1] cursor-pointer text-xs"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Consent & Security */}
+                <div className="p-3 bg-[#f8fafc] rounded-xl border border-[#e2e8f0] space-y-2">
+                  <label className="flex items-start gap-2.5 cursor-pointer text-xs text-[#334155]">
+                    <input
+                      type="checkbox"
+                      checked={agreedTerms}
+                      onChange={(e) => setAgreedTerms(e.target.checked)}
+                      className="w-4 h-4 rounded text-[#0ea5e9] accent-[#0ea5e9] mt-0.5 cursor-pointer"
+                    />
+                    <span>
+                      I consent to digital triage, Electronic Health Record (EHR) generation, and real-time OPD queue status alerts.
+                    </span>
+                  </label>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-3.5 rounded-xl bg-[#0ea5e9] hover:bg-[#0284c7] text-white font-bold text-xs sm:text-sm shadow-md flex items-center justify-center gap-2 transition cursor-pointer"
+                >
+                  <i className="fa-solid fa-user-check"></i>
+                  <span>Complete Registration & Proceed to Appointment Register</span>
+                </button>
+              </form>
+            </div>
           )}
         </div>
 

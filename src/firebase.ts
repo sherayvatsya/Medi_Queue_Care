@@ -36,8 +36,8 @@ export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 // Initialize Firestore with specific database ID if provided
-export const db = config.firestoreDatabaseId
-  ? getFirestore(app, config.firestoreDatabaseId)
+export const db = (config as any).firestoreDatabaseId
+  ? getFirestore(app, (config as any).firestoreDatabaseId)
   : getFirestore(app);
 
 // Helper to recursively strip undefined values so Firestore does not throw 'Unsupported field value: undefined'
