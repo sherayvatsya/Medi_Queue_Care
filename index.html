@@ -5,10 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Medi-Queue | In-Hospital Smart Queue & AI Triage Platform</title>
     <meta name="description" content="AI-powered OPD queue telemetry, pre-consultation triage, and indoor hospital wayfinding." />
-    <!-- Google Fonts -->
+    <link rel="icon" href="data:," />
+    <!-- Google Fonts: Inter and Manrope -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- FontAwesome 6 CDN -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <!-- Leaflet CSS & JS for OpenStreetMap Interactive Hospital Map -->
@@ -16,7 +17,10 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <style>
       body {
-        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      }
+      h1, h2, h3, h4, .font-heading {
+        font-family: 'Manrope', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       }
       .font-mono-num {
         font-family: 'JetBrains Mono', monospace;
@@ -34,11 +38,18 @@
         line-height: 1.4 !important;
       }
       .leaflet-container {
-        font-family: 'Plus Jakarta Sans', sans-serif !important;
+        font-family: 'Inter', sans-serif !important;
+        z-index: 1 !important;
+      }
+      .leaflet-pane {
+        z-index: 1 !important;
+      }
+      .leaflet-top, .leaflet-bottom {
+        z-index: 2 !important;
       }
     </style>
   </head>
-  <body class="bg-[#f8fafc] text-[#334155] antialiased selection:bg-[#0ea5e9] selection:text-white min-h-screen overflow-x-hidden">
+  <body class="bg-[#F6F9FC] dark:bg-[#0B1220] text-[#13213A] dark:text-[#F1F5F9] antialiased selection:bg-[#087FC9] selection:text-white min-h-screen overflow-x-hidden">
     <div id="root" class="overflow-x-hidden"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

@@ -6,7 +6,17 @@ import {
   NearbyLabsResponse,
   LabCategory,
 } from '../types';
-import { calculateHaversineDistance } from '../data/hospitalsData';
+import {
+  REAL_HOSPITALS_NETWORK,
+  PRIMARY_HOSPITAL_ID,
+  calculateHaversineDistance,
+  HospitalLocation,
+} from '../data/hospitalsData';
+import {
+  getInternalHospitalLab,
+  findNearbyExternalLabs,
+  VERIFIED_NEARBY_LABS,
+} from '../data/labsData';
 import { playHospitalChime } from '../utils/audio';
 
 declare global {
@@ -28,24 +38,54 @@ export const NearbyLabsModal: React.FC<NearbyLabsModalProps> = ({
   booking,
   onShowToast,
 }) => {
+  // Synchronous resolution of initial hospital data for 0ms instant loading
+  const initialHospital = React.useMemo(() => {
+    return (
+      REAL_HOSPITALS_NETWORK.find((h) => h.id === booking?.hospitalId) ||
+      REAL_HOSPITALS_NETWORK.find((h) => booking?.hospitalName && h.name.toLowerCase().includes(booking.hospitalName.toLowerCase())) ||
+      REAL_HOSPITALS_NETWORK.find((h) => h.id === PRIMARY_HOSPITAL_ID) ||
+      REAL_HOSPITALS_NETWORK[0]
+    );
+  }, [booking?.hospitalId, booking?.hospitalName]);
+
+  const initialInternal = React.useMemo(() => {
+    return initialHospital.internalLab || getInternalHospitalLab(initialHospital.id, initialHospital.name);
+  }, [initialHospital]);
+
+  const initialLabsResult = React.useMemo(() => {
+    return findNearbyExternalLabs({
+      centerLat: initialHospital.lat,
+      centerLng: initialHospital.lng,
+      radiusMeters: 5000,
+      category: 'all',
+      openNowOnly: false,
+      sortBy: 'distance',
+    });
+  }, [initialHospital]);
+
   // Geolocation & Fallback states
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isLocatingUser, setIsLocatingUser] = useState<boolean>(false);
   const [locationDenied, setLocationDenied] = useState<boolean>(false);
   const [locationNotice, setLocationNotice] = useState<string>('');
 
-  // API response data — allFetchedLabs holds the raw server response
-  const [isLoading, setIsLoading] = useState<boolean>(true);     // true only on FIRST load (no data yet)
-  const [isRefreshing, setIsRefreshing] = useState<boolean>(false); // true during background refetch (data already loaded)
+  // API response data — Instant Optimistic Initialization so 0ms wait time
+  const [isLoading, setIsLoading] = useState<boolean>(false);     // Instant load!
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false); // background sync
   const [apiError, setApiError] = useState<string | null>(null);
-  const [internalLab, setInternalLab] = useState<InternalHospitalLab | null>(null);
-  const [allFetchedLabs, setAllFetchedLabs] = useState<NearbyLab[]>([]); // raw from API
+  const [internalLab, setInternalLab] = useState<InternalHospitalLab | null>(() => initialInternal);
+  const [allFetchedLabs, setAllFetchedLabs] = useState<NearbyLab[]>(() => initialLabsResult.labs);
   const [searchCenter, setSearchCenter] = useState<{
     lat: number;
     lng: number;
     source: 'user' | 'hospital';
     label: string;
-  } | null>(null);
+  }>(() => ({
+    lat: initialHospital.lat,
+    lng: initialHospital.lng,
+    source: 'hospital',
+    label: `${initialHospital.name} (Booked Hospital)`,
+  }));
   const [autoExpanded, setAutoExpanded] = useState<boolean>(false);
 
   // Filters & Controls
@@ -183,16 +223,11 @@ export const NearbyLabsModal: React.FC<NearbyLabsModalProps> = ({
         setLocationNotice(
           'Location permission was not provided. Showing laboratories near your booked hospital.'
         );
-        notify(
-          'Using Hospital Location',
-          'Showing laboratories near your booked hospital as fallback.',
-          'info'
-        );
       },
       {
-        enableHighAccuracy: true,
-        timeout: 8000,
-        maximumAge: 60000,
+        enableHighAccuracy: false,
+        timeout: 3500,
+        maximumAge: 120000,
       }
     );
   }, [notify]);
@@ -216,13 +251,7 @@ export const NearbyLabsModal: React.FC<NearbyLabsModalProps> = ({
     const controller = new AbortController();
     abortRef.current = controller;
 
-    // If we already have data, do a silent background refresh (no skeletons)
-    const hasExistingData = allFetchedLabs.length > 0;
-    if (hasExistingData) {
-      setIsRefreshing(true);
-    } else {
-      setIsLoading(true);
-    }
+    setIsRefreshing(true);
     setApiError(null);
 
     try {
@@ -249,15 +278,16 @@ export const NearbyLabsModal: React.FC<NearbyLabsModalProps> = ({
         throw new Error(data.message || 'Failed to load laboratory data.');
       }
 
-      setInternalLab(data.internalLab);
-      setAllFetchedLabs(data.nearbyLabs); // store all unfiltered labs
-      setSearchCenter(data.searchCenter);
+      if (data.internalLab) setInternalLab(data.internalLab);
+      if (data.nearbyLabs && data.nearbyLabs.length > 0) {
+        setAllFetchedLabs(data.nearbyLabs);
+      }
+      if (data.searchCenter) setSearchCenter(data.searchCenter);
       setAutoExpanded(Boolean(data.autoExpandedRadius));
     } catch (err: any) {
       // Silently ignore aborted requests — a newer fetch is already in progress
       if (err?.name === 'AbortError') return;
       console.warn('Nearby labs fetch error:', err);
-      setApiError(err?.message || 'Unable to connect to the laboratory directory. Please try again.');
     } finally {
       // Only reset loading if this controller is still the active one
       if (abortRef.current === controller) {
@@ -265,8 +295,7 @@ export const NearbyLabsModal: React.FC<NearbyLabsModalProps> = ({
         setIsRefreshing(false);
       }
     }
-  // Only re-fetch from server when location or radius changes — NOT on category/sort changes
-  }, [booking.hospitalId, userLocation, selectedRadius, allFetchedLabs.length]);
+  }, [booking.hospitalId, userLocation, selectedRadius]);
 
   // Refetch when location or radius changes
   useEffect(() => {
@@ -1013,179 +1042,179 @@ export const NearbyLabsModal: React.FC<NearbyLabsModalProps> = ({
 
           {/* RIGHT COLUMN: INTERACTIVE LEAFLET MAP */}
           <div
-            className={`w-full lg:w-1/2 h-full flex flex-col relative bg-slate-100 ${
+            className={`w-full lg:w-1/2 h-full flex flex-col relative bg-slate-100 dark:bg-[#0B1220] overflow-hidden z-0 ${
               activeTab === 'list' ? 'hidden lg:flex' : 'flex'
             }`}
           >
-            <div ref={mapContainerRef} className="w-full h-full min-h-[350px]"></div>
+            <div ref={mapContainerRef} className="w-full h-full min-h-[350px] z-0"></div>
 
             {/* Map Legend Overlay */}
-            <div className="absolute top-3 left-3 z-[1000] bg-white/95 backdrop-blur-xs p-2.5 rounded-xl border border-slate-200 shadow-sm text-[11px] text-slate-700 space-y-1.5 pointer-events-auto max-w-[200px]">
-              <div className="font-extrabold text-slate-900 border-b border-slate-200 pb-1">
+            <div className="absolute top-3 left-3 z-[10] bg-white/95 dark:bg-[#111827]/95 backdrop-blur-xs p-2.5 rounded-xl border border-slate-200 dark:border-[#1E293B] shadow-sm text-[11px] text-slate-700 dark:text-[#94A3B8] space-y-1.5 pointer-events-auto max-w-[200px]">
+              <div className="font-extrabold text-slate-900 dark:text-white border-b border-slate-200 dark:border-[#1E293B] pb-1">
                 Map Markers
               </div>
               <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-sky-600"></span>
+                <span className="w-3 h-3 rounded-full bg-sky-600 shrink-0"></span>
                 <span>Your Location</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-emerald-600"></span>
+                <span className="w-3 h-3 rounded-full bg-emerald-600 shrink-0"></span>
                 <span>Hospital Lab (0 m)</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-purple-600"></span>
+                <span className="w-3 h-3 rounded-full bg-purple-600 shrink-0"></span>
                 <span>Nearby External Labs</span>
               </div>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* 7. DETAILED LABORATORY MODAL POPUP */}
-        {selectedLabDetails && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-            <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full p-5 sm:p-6 space-y-4 shadow-2xl text-left overflow-y-auto max-h-[85vh]">
-              {/* Header */}
-              <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-200">
-                <div>
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-sky-600 bg-sky-50 px-2 py-0.5 rounded-full inline-block mb-1">
-                    {'isInternal' in selectedLabDetails ? '🏥 Inside Your Hospital' : '🧪 External Diagnostic Partner'}
-                  </span>
-                  <h3 className="font-extrabold text-lg text-slate-900">{selectedLabDetails.name}</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    {'locationDetails' in selectedLabDetails
-                      ? selectedLabDetails.locationDetails
-                      : (selectedLabDetails as NearbyLab).address}
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedLabDetails(null)}
-                  className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg cursor-pointer"
-                >
-                  ✕
-                </button>
+      {/* 7. DETAILED LABORATORY MODAL POPUP — Rendered at Root Viewport Level with z-[2500] so Leaflet Map Never Overlaps */}
+      {selectedLabDetails && (
+        <div className="fixed inset-0 z-[2500] flex items-center justify-center p-3 sm:p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-[#111827] rounded-3xl border border-slate-200 dark:border-[#1E293B] max-w-lg w-full p-5 sm:p-6 space-y-4 shadow-2xl text-left overflow-y-auto max-h-[85vh] relative animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-200 dark:border-[#1E293B]">
+              <div>
+                <span className="text-[10px] uppercase font-bold tracking-wider text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-[#082F49] px-2 py-0.5 rounded-full inline-block mb-1 border border-sky-200 dark:border-sky-800">
+                  {'isInternal' in selectedLabDetails ? '🏥 Inside Your Hospital' : '🧪 External Diagnostic Partner'}
+                </span>
+                <h3 className="font-extrabold text-lg text-slate-900 dark:text-white">{selectedLabDetails.name}</h3>
+                <p className="text-xs text-slate-500 dark:text-[#94A3B8] mt-0.5">
+                  {'locationDetails' in selectedLabDetails
+                    ? selectedLabDetails.locationDetails
+                    : (selectedLabDetails as NearbyLab).address}
+                </p>
               </div>
 
-              {/* Quick Info Grid */}
-              <div className="grid grid-cols-2 gap-3 text-xs bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-                <div>
-                  <span className="text-[10px] font-bold uppercase text-slate-400 block">Distance</span>
-                  <span className="font-bold text-slate-900">
-                    {'distanceKm' in selectedLabDetails && selectedLabDetails.distanceKm === 0
-                      ? '0 m (Inside Hospital)'
-                      : `${selectedLabDetails.distanceKm} km away`}
-                  </span>
-                </div>
+              <button
+                type="button"
+                onClick={() => setSelectedLabDetails(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-[#172033] text-slate-500 dark:text-[#94A3B8] hover:text-slate-900 dark:hover:text-white flex items-center justify-center cursor-pointer transition"
+              >
+                ✕
+              </button>
+            </div>
 
-                <div>
-                  <span className="text-[10px] font-bold uppercase text-slate-400 block">Rating</span>
-                  <span className="font-bold text-amber-600">
-                    ★ {selectedLabDetails.rating} ({selectedLabDetails.reviewsCount} reviews)
-                  </span>
-                </div>
-
-                <div>
-                  <span className="text-[10px] font-bold uppercase text-slate-400 block">Operating Hours</span>
-                  <span className="font-semibold text-slate-800">
-                    {'operatingHours' in selectedLabDetails
-                      ? selectedLabDetails.operatingHours
-                      : (selectedLabDetails as NearbyLab).openingHours}
-                  </span>
-                </div>
-
-                <div>
-                  <span className="text-[10px] font-bold uppercase text-slate-400 block">Phone</span>
-                  <a
-                    href={`tel:${selectedLabDetails.phone}`}
-                    className="font-bold text-sky-600 hover:underline"
-                  >
-                    {selectedLabDetails.phone}
-                  </a>
-                </div>
+            {/* Quick Info Grid */}
+            <div className="grid grid-cols-2 gap-3 text-xs bg-slate-50 dark:bg-[#172033] p-3.5 rounded-2xl border border-slate-200 dark:border-[#1E293B]">
+              <div>
+                <span className="text-[10px] font-bold uppercase text-slate-400 dark:text-[#94A3B8] block">Distance</span>
+                <span className="font-bold text-slate-900 dark:text-white">
+                  {'distanceKm' in selectedLabDetails && selectedLabDetails.distanceKm === 0
+                    ? '0 m (Inside Hospital)'
+                    : `${selectedLabDetails.distanceKm} km away`}
+                </span>
               </div>
 
-              {/* Accreditations if present */}
-              {selectedLabDetails.accreditations && selectedLabDetails.accreditations.length > 0 && (
-                <div className="flex items-center gap-1.5 flex-wrap text-xs">
-                  <span className="text-[11px] font-bold text-slate-500">Accreditations:</span>
-                  {selectedLabDetails.accreditations.map((acc) => (
-                    <span
-                      key={acc}
-                      className="bg-emerald-50 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-md border border-emerald-200"
-                    >
-                      ✓ {acc}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              {/* Available Services List */}
-              <div className="space-y-1.5">
-                <span className="text-xs font-bold text-slate-900 block">Available Diagnostic Tests & Services:</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {selectedLabDetails.services.map((srv) => (
-                    <span
-                      key={srv}
-                      className="bg-slate-100 text-slate-800 text-xs px-2.5 py-1 rounded-lg border border-slate-200 font-medium"
-                    >
-                      {srv}
-                    </span>
-                  ))}
-                </div>
+              <div>
+                <span className="text-[10px] font-bold uppercase text-slate-400 dark:text-[#94A3B8] block">Rating</span>
+                <span className="font-bold text-amber-500">
+                  ★ {selectedLabDetails.rating} ({selectedLabDetails.reviewsCount} reviews)
+                </span>
               </div>
 
-              {/* Popular Test Turnaround & Pricing */}
-              {selectedLabDetails.popularTests && selectedLabDetails.popularTests.length > 0 && (
-                <div className="space-y-1.5 pt-1">
-                  <span className="text-xs font-bold text-slate-900 block">Standard Turnaround Times:</span>
-                  <div className="space-y-1">
-                    {selectedLabDetails.popularTests.map((t) => (
-                      <div
-                        key={t.name}
-                        className="flex items-center justify-between text-xs bg-slate-50 p-2 rounded-lg border border-slate-200"
-                      >
-                        <span className="text-slate-800 font-medium">{t.name}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-slate-500">~{t.turnaroundHours}h</span>
-                          {t.priceEstimate && (
-                            <span className="font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                              {t.priceEstimate}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <div>
+                <span className="text-[10px] font-bold uppercase text-slate-400 dark:text-[#94A3B8] block">Operating Hours</span>
+                <span className="font-semibold text-slate-800 dark:text-[#F1F5F9]">
+                  {'operatingHours' in selectedLabDetails
+                    ? selectedLabDetails.operatingHours
+                    : (selectedLabDetails as NearbyLab).openingHours}
+                </span>
+              </div>
 
-              {/* Actions: Call & Directions */}
-              <div className="flex items-center gap-2 pt-2 border-t border-slate-200">
+              <div>
+                <span className="text-[10px] font-bold uppercase text-slate-400 dark:text-[#94A3B8] block">Phone</span>
                 <a
                   href={`tel:${selectedLabDetails.phone}`}
-                  className="flex-1 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 font-bold text-xs flex items-center justify-center gap-2 transition"
+                  className="font-bold text-sky-600 dark:text-sky-400 hover:underline"
                 >
-                  <i className="fa-solid fa-phone text-slate-400"></i>
-                  <span>Call Lab</span>
+                  {selectedLabDetails.phone}
                 </a>
-
-                {'lat' in selectedLabDetails && (
-                  <a
-                    href={getDirectionsUrl(selectedLabDetails.lat, selectedLabDetails.lng)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition shadow-xs"
-                  >
-                    <i className="fa-solid fa-diamond-turn-right"></i>
-                    <span>Directions</span>
-                  </a>
-                )}
               </div>
             </div>
+
+            {/* Accreditations if present */}
+            {selectedLabDetails.accreditations && selectedLabDetails.accreditations.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap text-xs">
+                <span className="text-[11px] font-bold text-slate-500 dark:text-[#94A3B8]">Accreditations:</span>
+                {selectedLabDetails.accreditations.map((acc) => (
+                  <span
+                    key={acc}
+                    className="bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800"
+                  >
+                    ✓ {acc}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Available Services List */}
+            <div className="space-y-1.5">
+              <span className="text-xs font-bold text-slate-900 dark:text-white block">Available Diagnostic Tests & Services:</span>
+              <div className="flex flex-wrap gap-1.5">
+                {selectedLabDetails.services.map((srv) => (
+                  <span
+                    key={srv}
+                    className="bg-slate-100 dark:bg-[#1E293B] text-slate-800 dark:text-[#F1F5F9] text-xs px-2.5 py-1 rounded-lg border border-slate-200 dark:border-[#334155] font-medium"
+                  >
+                    {srv}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Popular Test Turnaround & Pricing */}
+            {selectedLabDetails.popularTests && selectedLabDetails.popularTests.length > 0 && (
+              <div className="space-y-1.5 pt-1">
+                <span className="text-xs font-bold text-slate-900 dark:text-white block">Standard Turnaround Times:</span>
+                <div className="space-y-1">
+                  {selectedLabDetails.popularTests.map((t) => (
+                    <div
+                      key={t.name}
+                      className="flex items-center justify-between text-xs bg-slate-50 dark:bg-[#172033] p-2 rounded-xl border border-slate-200 dark:border-[#1E293B]"
+                    >
+                      <span className="text-slate-800 dark:text-[#F1F5F9] font-medium">{t.name}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-500 dark:text-[#94A3B8]">~{t.turnaroundHours}h</span>
+                        {t.priceEstimate && (
+                          <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                            {t.priceEstimate}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Actions: Call & Directions */}
+            <div className="flex items-center gap-2 pt-2 border-t border-slate-200 dark:border-[#1E293B]">
+              <a
+                href={`tel:${selectedLabDetails.phone}`}
+                className="flex-1 py-2.5 rounded-xl border border-slate-300 dark:border-[#1E293B] hover:bg-slate-100 dark:hover:bg-[#172033] text-slate-700 dark:text-white font-bold text-xs flex items-center justify-center gap-2 transition"
+              >
+                <i className="fa-solid fa-phone text-slate-400"></i>
+                <span>Call Lab</span>
+              </a>
+
+              {'lat' in selectedLabDetails && (
+                <a
+                  href={getDirectionsUrl(selectedLabDetails.lat, selectedLabDetails.lng)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition shadow-xs"
+                >
+                  <i className="fa-solid fa-diamond-turn-right"></i>
+                  <span>Directions</span>
+                </a>
+              )}
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };

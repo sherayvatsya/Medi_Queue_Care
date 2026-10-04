@@ -12,6 +12,38 @@ import { exportTokenToPDF } from '../utils/pdfExport';
 import { getValidDoctorAvatar, handleDoctorImageError } from '../utils/doctorAvatar';
 import { BookingConfirmationModal } from './BookingConfirmationModal';
 import { NearbyLabsModal } from './NearbyLabsModal';
+import { MedicalFileModal } from './MedicalFileModal';
+import {
+  Building2,
+  ChevronRight,
+  Copy,
+  Check,
+  Droplets,
+  Calendar,
+  User,
+  Phone,
+  FolderKanban,
+  Edit3,
+  Video,
+  Plus,
+  FlaskConical,
+  Printer,
+  Send,
+  RefreshCw,
+  Users,
+  Clock,
+  Radio,
+  Volume2,
+  Sparkles,
+  CheckCircle2,
+  ShieldCheck,
+  MapPin,
+  Share2,
+  Bell,
+  AlertTriangle,
+  Stethoscope,
+  Activity,
+} from 'lucide-react';
 
 interface PatientPortalProps {
   doctors: Doctor[];
@@ -89,6 +121,8 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
   const [showBookingConfirmation, setShowBookingConfirmation] = useState<boolean>(false);
   const [showNearbyLabsModal, setShowNearbyLabsModal] = useState<boolean>(false);
+  const [showMedicalFileModal, setShowMedicalFileModal] = useState<boolean>(false);
+  const [isRefreshingQueue, setIsRefreshingQueue] = useState<boolean>(false);
   const [latestBookedPatient, setLatestBookedPatient] = useState<Patient | null>(null);
   const [smsSentNotice, setSmsSentNotice] = useState<boolean>(false);
   const [copiedId, setCopiedId] = useState<boolean>(false);
@@ -364,91 +398,125 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
 
   // MAIN CONTAINER CONTENT
   const containerContent = (
-    <div className="max-w-4xl mx-auto w-full px-2.5 sm:px-4 py-3 sm:py-6 space-y-4 sm:space-y-6 box-border">
-      {/* 1. TOP PATIENT PROFILE CARD (Responsive Mobile-First Layout) */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-4 sm:p-7 flex flex-col sm:flex-row items-center sm:justify-between gap-3.5 sm:gap-4 text-center sm:text-left transition-all w-full box-border">
-        {/* Left Column: Avatar & Patient Details */}
-        <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 w-full sm:w-auto min-w-0">
-          <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-tr from-sky-500 to-cyan-400 text-white flex items-center justify-center font-bold text-base sm:text-lg shadow-sm shrink-0">
-            {currentUser ? currentUser.name.charAt(0) : <i className="fa-solid fa-user-shield"></i>}
-          </div>
-          <div className="space-y-1 flex flex-col items-center sm:items-start max-w-full min-w-0">
-            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5 sm:gap-2 max-w-full">
-              <h2 className="font-extrabold text-base md:text-lg text-slate-900 tracking-tight truncate max-w-[240px] sm:max-w-none">
-                {currentUser ? currentUser.name : patientName}
-              </h2>
-              {currentUser ? (
-                <button
-                  type="button"
-                  onClick={() => handleCopyUHID(currentUser.uhid)}
-                  className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 bg-sky-50 hover:bg-sky-100 text-sky-700 rounded-full border border-sky-200 shadow-2xs max-w-full font-mono text-[11px] sm:text-xs font-bold transition-all cursor-pointer group shrink-0"
-                  title="Click to copy Official Hospital UHID"
-                >
-                  <span className="text-[9px] font-sans font-extrabold uppercase tracking-wider text-sky-800 bg-sky-200/60 px-1 py-0.2 rounded-full shrink-0">
-                    UHID
-                  </span>
-                  <span className="tracking-tight truncate max-w-[140px] sm:max-w-none">{currentUser.uhid}</span>
-                  <i className={`fa-solid ${copiedId ? 'fa-check text-emerald-600' : 'fa-copy text-sky-500 group-hover:scale-110'} text-[10px] transition-transform shrink-0`}></i>
-                </button>
-              ) : (
-                <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-amber-50 text-amber-700 border border-amber-200 shrink-0">
-                  Guest Session
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-slate-500 font-medium break-words text-center sm:text-left">
-              {currentUser
-                ? `${currentUser.age} yrs • ${currentUser.gender} • ${currentUser.phone}`
-                : 'Sign in with Mobile OTP for automated history & fast-track queue pass.'}
-            </p>
-          </div>
+    <div className="max-w-[1440px] mx-auto w-full px-3 sm:px-6 py-4 sm:py-6 space-y-6 box-border">
+      {/* 1. TOP PATIENT PROFILE CARD (Matching Google Stitch Reference) */}
+      <div className="card-healthcare p-5 sm:p-7 bg-white dark:bg-[#111827] relative overflow-hidden">
+        {/* Subtle background hospital architecture watermark */}
+        <div className="absolute right-0 top-0 bottom-0 w-2/5 opacity-[0.04] dark:opacity-[0.03] pointer-events-none flex items-center justify-end overflow-hidden pr-6">
+          <Building2 className="w-72 h-72 text-[#087FC9]" />
         </div>
 
-        {/* Right Column: Aligned Action Buttons (No Clipping / Wrap cleanly on mobile) */}
-        <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2 w-full sm:w-auto pt-3 sm:pt-0 border-t sm:border-t-0 border-slate-100">
-          {currentUser ? (
-            <>
-              <button
-                type="button"
-                onClick={() => setShowProfileModal(true)}
-                className="flex-1 sm:flex-initial px-3 sm:px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer shadow-2xs whitespace-nowrap"
-              >
-                <i className="fa-solid fa-address-card text-sky-500"></i>
-                <span>Medical File</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowEditProfileModal(true)}
-                className="flex-1 sm:flex-initial px-3 sm:px-3.5 py-2 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer shadow-2xs whitespace-nowrap"
-                title="Edit personal details, age, blood group, allergies, and emergency contacts"
-              >
-                <i className="fa-solid fa-user-pen text-sky-600"></i>
-                <span>Edit Details</span>
-              </button>
-            </>
-          ) : (
-            <>
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 relative z-10">
+          {/* Left Column: Avatar & Patient Identity */}
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 text-center sm:text-left">
+            {/* Circular Avatar */}
+            <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-[#38BDF8] to-[#087FC9] text-white flex items-center justify-center font-heading font-extrabold text-2xl shadow-md shrink-0">
+              {currentUser ? currentUser.name.charAt(0) : 'R'}
+            </div>
+
+            <div className="space-y-1.5 min-w-0">
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
+                <h2 className="font-heading font-extrabold text-xl text-[#13213A] dark:text-white tracking-tight">
+                  {currentUser ? currentUser.name : patientName}
+                </h2>
+                {currentUser ? (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EBF5FB] dark:bg-[#082F49] text-[#087FC9] dark:text-[#38BDF8] border border-[#BAE6FD] dark:border-[#0284C7] text-xs font-mono font-bold shadow-2xs">
+                    <span className="text-[9px] font-sans font-extrabold uppercase px-1.5 py-0.2 bg-[#087FC9] text-white rounded-full">
+                      UHID
+                    </span>
+                    <span>{currentUser.uhid}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyUHID(currentUser.uhid)}
+                      className="text-[#087FC9] dark:text-[#38BDF8] hover:text-[#0B5E97] cursor-pointer ml-0.5"
+                      title="Click to copy Official Hospital UHID"
+                    >
+                      {copiedId ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                ) : (
+                  <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                    Guest Session
+                  </span>
+                )}
+              </div>
+
+              <p className="text-xs text-[#64748B] dark:text-[#94A3B8] font-medium">
+                {currentUser
+                  ? `${currentUser.age} years • ${currentUser.gender} • ${currentUser.phone}`
+                  : `${patientAge} years • ${patientGender} • ${patientPhone}`}
+              </p>
+
+              {/* 4 Information Chips Row */}
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-1.5">
+                {/* Blood Group */}
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900 text-xs font-semibold">
+                  <Droplets className="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
+                  <span>{currentUser?.bloodGroup || 'B+'} Blood Group</span>
+                </span>
+                {/* Age */}
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-900 text-xs font-semibold">
+                  <Calendar className="w-3.5 h-3.5 text-sky-500" />
+                  <span>{currentUser?.age || patientAge} years Age</span>
+                </span>
+                {/* Gender */}
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-cyan-50 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-900 text-xs font-semibold">
+                  <User className="w-3.5 h-3.5 text-cyan-500" />
+                  <span>{currentUser?.gender || patientGender} Gender</span>
+                </span>
+                {/* Mobile */}
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-900 text-xs font-semibold">
+                  <Phone className="w-3.5 h-3.5 text-teal-500" />
+                  <span>{currentUser?.phone || patientPhone} Mobile</span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column: Actions */}
+          <div className="flex flex-wrap sm:flex-nowrap items-center justify-center sm:justify-end gap-2.5 pt-3 lg:pt-0 border-t lg:border-t-0 border-[#E5EDF5] dark:border-[#1E293B]">
+            {currentUser ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowMedicalFileModal(true)}
+                  className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-white dark:bg-[#111827] hover:bg-[#F6F9FC] dark:hover:bg-[#172033] text-[#13213A] dark:text-white border border-[#E5EDF5] dark:border-[#1E293B] text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer shadow-2xs whitespace-nowrap"
+                >
+                  <FolderKanban className="w-4 h-4 text-[#087FC9]" />
+                  <span>Medical File</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowEditProfileModal(true)}
+                  className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-white dark:bg-[#111827] hover:bg-[#F6F9FC] dark:hover:bg-[#172033] text-[#13213A] dark:text-white border border-[#E5EDF5] dark:border-[#1E293B] text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer shadow-2xs whitespace-nowrap"
+                  title="Edit personal details, age, blood group, allergies, and emergency contacts"
+                >
+                  <Edit3 className="w-4 h-4 text-[#087FC9]" />
+                  <span>Edit Details</span>
+                </button>
+              </>
+            ) : (
               <button
                 type="button"
                 onClick={() => setShowAuthModal(true)}
-                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold transition shadow-sm cursor-pointer flex items-center justify-center gap-2"
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-[#087FC9] hover:bg-[#0B5E97] text-white text-xs font-bold transition shadow-sm cursor-pointer flex items-center justify-center gap-2"
               >
-                <i className="fa-solid fa-mobile-screen"></i>
+                <Phone className="w-4 h-4" />
                 <span>Mobile OTP Sign-In</span>
               </button>
-            </>
-          )}
+            )}
 
-          {onRequestTeleconsult && (
-            <button
-              type="button"
-              onClick={onRequestTeleconsult}
-              className="flex-1 sm:flex-initial px-3 sm:px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-sky-400 text-xs font-semibold border border-slate-800 flex items-center justify-center gap-1.5 transition cursor-pointer shadow-2xs whitespace-nowrap"
-            >
-              <i className="fa-solid fa-video"></i>
-              <span>Virtual OPD</span>
-            </button>
-          )}
+            {onRequestTeleconsult && (
+              <button
+                type="button"
+                onClick={onRequestTeleconsult}
+                className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-[#087FC9] hover:bg-[#0B5E97] text-white text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer shadow-sm whitespace-nowrap"
+              >
+                <Video className="w-4 h-4" />
+                <span>Virtual OPD</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1408,168 +1476,560 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
             </div>
           )}
 
-          {/* 2. MAIN TOKEN PASS CARD ("A-42" / "G-48") */}
-          <div className="rounded-2xl bg-gradient-to-br from-sky-500 via-sky-600 to-cyan-600 text-white text-center p-4 sm:p-8 shadow-lg relative overflow-hidden space-y-3.5 w-full box-border">
-            {/* Hospital Facility Header Badge */}
-            <div className="flex items-center justify-between gap-2 border-b border-white/20 pb-2.5">
-              <div className="flex items-center gap-2 min-w-0 text-left">
-                <span className="w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
-                  <i className="fa-solid fa-hospital text-emerald-200 text-xs"></i>
-                </span>
-                <span className="block text-xs sm:text-sm font-bold text-white truncate drop-shadow-xs">
-                  {currentPatient.hospitalName || 'Max Super Specialty Hospital, Mohali'}
-                </span>
+          {/* 2-COLUMN DASHBOARD GRID (Desktop: 65% Left / 35% Right) */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* LEFT COLUMN: ~65% (lg:col-span-7) */}
+            <div className="lg:col-span-7 space-y-6">
+              {/* 1. LIVE QUEUE CARD (The Visual Centerpiece) */}
+              <div className="relative rounded-2xl bg-gradient-to-br from-[#087FC9] via-[#096DB0] to-[#04598F] text-white p-5 sm:p-7 shadow-xl overflow-hidden space-y-4">
+                {/* Background Hospital Waiting Room Texture Overlay */}
+                <div
+                  className="absolute inset-0 bg-cover bg-center opacity-15 mix-blend-overlay pointer-events-none"
+                  style={{
+                    backgroundImage: `url('https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=1200&auto=format&fit=crop&q=80')`,
+                  }}
+                />
+
+                {/* Card Header: ● LIVE QUEUE and Last updated */}
+                <div className="flex items-center justify-between relative z-10">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-xs font-extrabold uppercase tracking-wider text-white shadow-2xs">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#16B981] live-indicator"></span>
+                    <span>LIVE QUEUE</span>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-xs text-white/80">
+                    <span className="text-[11px]">Last updated 10:42 AM</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsRefreshingQueue(true);
+                        playHospitalChime();
+                        notify('Queue Telemetry Refreshed', 'Real-time telemetry synced with hospital server.', 'info');
+                        setTimeout(() => setIsRefreshingQueue(false), 700);
+                      }}
+                      className="w-7 h-7 rounded-lg bg-white/15 hover:bg-white/25 flex items-center justify-center cursor-pointer transition text-white shadow-2xs"
+                      title="Refresh live queue status"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingQueue ? 'animate-spin' : ''}`} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Hospital and Department Breadcrumb */}
+                <div className="flex items-center gap-3 relative z-10 pt-1">
+                  <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 shadow-2xs">
+                    <Building2 className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1 font-heading font-extrabold text-sm text-white truncate">
+                      <span>{currentPatient.hospitalName || 'Max Super Specialty Hospital, Mohali'}</span>
+                      <ChevronRight className="w-4 h-4 text-white/60 shrink-0" />
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-white/80 truncate">
+                      <span>{currentPatient.department} • {currentPatient.opdBlock} | {currentPatient.floor} | {activeRoom}</span>
+                      <ChevronRight className="w-3.5 h-3.5 text-white/60 shrink-0" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Center Token Display */}
+                <div className="text-center py-2 relative z-10">
+                  <span className="text-[11px] font-bold uppercase tracking-widest text-sky-100/90 block">
+                    YOUR TOKEN
+                  </span>
+                  <div className="token-clamp font-heading font-black tracking-tight text-white drop-shadow-md my-1">
+                    {currentPatient.tokenNumber}
+                  </div>
+                </div>
+
+                {/* 3 Metrics Row */}
+                <div className="grid grid-cols-3 gap-2 text-center relative z-10 py-1.5 border-t border-b border-white/20">
+                  <div className="p-2">
+                    <div className="flex items-center justify-center gap-1.5 text-white/90 text-xs">
+                      <Users className="w-3.5 h-3.5" />
+                      <span className="font-heading font-extrabold text-base">{currentPatient.queuePosition}</span>
+                    </div>
+                    <span className="text-[10px] text-white/80 block">Patients Ahead</span>
+                  </div>
+                  <div className="p-2 border-x border-white/20">
+                    <div className="flex items-center justify-center gap-1.5 text-white/90 text-xs">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span className="font-heading font-extrabold text-base">~{currentPatient.estimatedWaitMinutes} mins</span>
+                    </div>
+                    <span className="text-[10px] text-white/80 block">Estimated Wait</span>
+                  </div>
+                  <div className="p-2">
+                    <div className="flex items-center justify-center gap-1.5 text-white/90 text-xs">
+                      <Radio className="w-3.5 h-3.5 text-emerald-300" />
+                      <span className="font-heading font-extrabold text-base">Live</span>
+                    </div>
+                    <span className="text-[10px] text-white/80 block">Queue Active</span>
+                  </div>
+                </div>
+
+                {/* Visual Queue Progress Indicator */}
+                <div className="relative z-10 pt-2 px-1">
+                  <div className="flex items-center justify-between text-[11px] text-white/90 mb-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-4 h-4 rounded-full bg-[#16B981] flex items-center justify-center text-[10px] font-bold">✓</span>
+                      <span>Completed 12</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 font-bold">
+                      <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping"></span>
+                      <span>You {currentPatient.tokenNumber}</span>
+                    </div>
+                    <div className="text-white/70">
+                      <span>Remaining 25+</span>
+                    </div>
+                  </div>
+                  {/* Visual Step Progress Line */}
+                  <div className="w-full h-1.5 rounded-full bg-white/25 overflow-hidden flex">
+                    <div className="w-2/5 h-full bg-[#16B981]"></div>
+                    <div className="w-1/5 h-full bg-white animate-pulse"></div>
+                    <div className="w-2/5 h-full bg-white/20"></div>
+                  </div>
+                </div>
+
+                {/* Bottom Action: Listen Audio Call */}
+                <div className="pt-2 relative z-10 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => announceTokenVoice(currentPatient.tokenNumber, activeRoom, liveDoctor?.name || currentPatient.doctorName)}
+                    className="w-full sm:w-auto px-6 py-2.5 rounded-full bg-white/20 hover:bg-white/30 text-white text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer backdrop-blur-md shadow-2xs"
+                  >
+                    <Volume2 className="w-4 h-4" />
+                    <span>Listen to Audio Call</span>
+                  </button>
+                </div>
               </div>
-              <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-500/30 border border-emerald-400/40 text-emerald-100 px-2.5 py-0.5 rounded-full shrink-0">
-                Verified Pass
-              </span>
-            </div>
 
-            <div className="flex flex-col xs:flex-row gap-2 justify-between items-center text-center xs:text-left px-1 w-full">
-              <span className="text-xs font-bold uppercase tracking-widest text-sky-100">
-                LIVE PATIENT PASS
-              </span>
-              <button
-                type="button"
-                onClick={() => handleCopyUHID(currentPatient.uhid)}
-                className="inline-flex items-center self-center xs:self-auto text-xs font-mono bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full font-bold transition gap-1.5 cursor-pointer backdrop-blur-xs max-w-full"
-                title="Click to copy Unique ID"
-              >
-                <span className="truncate max-w-[180px] sm:max-w-none">{currentPatient.uhid}</span>
-                <i className="fa-solid fa-copy text-[10px] shrink-0"></i>
-              </button>
-            </div>
+              {/* 2. QUICK ACTIONS SECTION */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-[#087FC9]" />
+                  <h3 className="font-heading font-extrabold text-sm text-[#13213A] dark:text-white uppercase tracking-wider">
+                    Quick Actions
+                  </h3>
+                </div>
 
-            {/* Dynamic Token Display (Centered with responsive clamp) */}
-            <div className="token-clamp font-black font-mono tracking-tight my-2 drop-shadow-sm text-center">
-              {currentPatient.tokenNumber}
-            </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {/* Action 1: Register Another Token */}
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStep('type_selection')}
+                    className="card-healthcare p-3.5 bg-white dark:bg-[#111827] flex items-center gap-3 text-left hover:border-emerald-300 transition cursor-pointer group"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                      <Plus className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-[#13213A] dark:text-white leading-tight truncate">Register</p>
+                      <p className="text-[11px] text-[#64748B] dark:text-[#94A3B8] truncate">Another Token</p>
+                    </div>
+                  </button>
 
-            {/* Sub-info with Flexible Centered Pill Container */}
-            <div className="py-1 flex justify-center w-full">
-              <div className="inline-block bg-white/20 backdrop-blur-xs px-3.5 sm:px-4 py-2 rounded-full sub-pill-clamp font-semibold text-white shadow-2xs max-w-full text-center break-words">
-                {currentPatient.queuePosition === 0
-                  ? '🎉 You are Next! Please proceed into room'
-                  : `${currentPatient.queuePosition} Patients Ahead • Est. wait ~${currentPatient.estimatedWaitMinutes} mins`}
+                  {/* Action 2: Tele-Consult */}
+                  <button
+                    type="button"
+                    onClick={onRequestTeleconsult}
+                    className="card-healthcare p-3.5 bg-white dark:bg-[#111827] flex items-center gap-3 text-left hover:border-sky-300 transition cursor-pointer group"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-sky-50 dark:bg-sky-950/40 text-[#087FC9] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                      <Video className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-[#13213A] dark:text-white leading-tight truncate">Tele-Consult</p>
+                      <p className="text-[11px] text-[#64748B] dark:text-[#94A3B8] truncate">Virtual Doctor</p>
+                    </div>
+                  </button>
+
+                  {/* Action 3: View Medical File */}
+                  <button
+                    type="button"
+                    onClick={() => setShowMedicalFileModal(true)}
+                    className="card-healthcare p-3.5 bg-white dark:bg-[#111827] flex items-center gap-3 text-left hover:border-teal-300 transition cursor-pointer group"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-teal-50 dark:bg-teal-950/40 text-teal-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                      <FolderKanban className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-[#13213A] dark:text-white leading-tight truncate">Medical File</p>
+                      <p className="text-[11px] text-[#64748B] dark:text-[#94A3B8] truncate">View Records</p>
+                    </div>
+                  </button>
+
+                  {/* Action 4: Find Nearby Labs */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowNearbyLabsModal(true);
+                      playHospitalChime();
+                    }}
+                    className="card-healthcare p-3.5 bg-white dark:bg-[#111827] flex items-center gap-3 text-left hover:border-purple-300 transition cursor-pointer group"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                      <FlaskConical className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-[#13213A] dark:text-white leading-tight truncate">Nearby Labs</p>
+                      <p className="text-[11px] text-[#64748B] dark:text-[#94A3B8] truncate">Diagnostics</p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* 3. RECENT ACTIVITY TIMELINE */}
+              <div className="card-healthcare p-5 bg-white dark:bg-[#111827] space-y-3.5">
+                <div className="flex items-center justify-between pb-2 border-b border-[#E5EDF5] dark:border-[#1E293B]">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-[#087FC9]" />
+                    <h3 className="font-heading font-extrabold text-sm text-[#13213A] dark:text-white">
+                      Recent Activity
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowMedicalFileModal(true)}
+                    className="text-xs text-[#087FC9] hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>View All</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {/* Activity Item 1 */}
+                  <div className="flex items-start justify-between gap-3 text-xs">
+                    <div className="flex items-start gap-2.5">
+                      <div className="w-6 h-6 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mt-0.5 shrink-0">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-[#13213A] dark:text-white">Queue token generated</p>
+                        <p className="text-[11px] text-[#64748B] dark:text-[#94A3B8]">Orthopedics • Token A-42</p>
+                      </div>
+                    </div>
+                    <span className="text-[11px] font-mono text-[#64748B] shrink-0">10:30 AM</span>
+                  </div>
+
+                  {/* Activity Item 2 */}
+                  <div className="flex items-start justify-between gap-3 text-xs">
+                    <div className="flex items-start gap-2.5">
+                      <div className="w-6 h-6 rounded-full bg-sky-50 text-[#087FC9] flex items-center justify-center mt-0.5 shrink-0">
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-[#13213A] dark:text-white">Appointment confirmed</p>
+                        <p className="text-[11px] text-[#64748B] dark:text-[#94A3B8]">Dr. Arvind Sharma • 10 Oct 2026</p>
+                      </div>
+                    </div>
+                    <span className="text-[11px] font-mono text-[#64748B] shrink-0">10:28 AM</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* SMS Notification Banner Confirmation */}
+              {smsSentNotice && (
+                <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center justify-between">
+                  <span className="flex items-center gap-2.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>SMS Link sent to {currentPatient.phone}. Open link on any phone to track live!</span>
+                  </span>
+                  <button onClick={() => setSmsSentNotice(false)} className="text-emerald-800 font-bold cursor-pointer p-1">✕</button>
+                </div>
+              )}
+
+              {/* Secondary Utility Actions (Wheelchair & Family Share) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={handleToggleWheelchairInActiveToken}
+                  className={`p-3.5 rounded-2xl border text-xs font-bold flex items-center justify-center gap-2.5 transition cursor-pointer shadow-2xs select-none active:scale-[0.98] ${
+                    currentPatient.wheelchairRequest || wheelchairRequested
+                      ? 'bg-emerald-50 border-emerald-300 text-emerald-800 ring-2 ring-emerald-500/20'
+                      : 'bg-white dark:bg-[#111827] border-[#E5EDF5] dark:border-[#1E293B] text-[#13213A] dark:text-white hover:bg-[#F6F9FC]'
+                  }`}
+                >
+                  <i className={`fa-solid fa-wheelchair text-sm ${currentPatient.wheelchairRequest || wheelchairRequested ? 'text-emerald-600' : 'text-[#087FC9]'}`}></i>
+                  <span>{currentPatient.wheelchairRequest || wheelchairRequested ? 'Wheelchair Dispatched' : 'Request Wheelchair'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleShareWhatsApp}
+                  className="p-3.5 rounded-2xl border bg-white dark:bg-[#111827] border-[#E5EDF5] dark:border-[#1E293B] hover:bg-[#F6F9FC] text-[#13213A] dark:text-white text-xs font-bold flex items-center justify-center gap-2.5 transition cursor-pointer shadow-2xs select-none active:scale-[0.98]"
+                >
+                  <Share2 className="w-4 h-4 text-[#16B981]" />
+                  <span>Share with Family</span>
+                </button>
               </div>
             </div>
 
-            {/* Center-aligned Action inside Token Card */}
-            <div className="pt-3 border-t border-white/20 flex items-center justify-center gap-3">
-              <button
-                type="button"
-                onClick={() => announceTokenVoice(currentPatient.tokenNumber, activeRoom, liveDoctor?.name || currentPatient.doctorName)}
-                className="w-full xs:w-auto px-4 py-2 rounded-full bg-white/20 hover:bg-white/30 text-white text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer backdrop-blur-xs"
-              >
-                <i className="fa-solid fa-volume-high text-xs"></i>
-                <span>Listen Audio Call</span>
-              </button>
-            </div>
-          </div>
+            {/* RIGHT COLUMN: ~35% (lg:col-span-5) */}
+            <div className="lg:col-span-5 space-y-6">
+              {/* 1. TODAY'S APPOINTMENT CARD */}
+              <div className="card-healthcare p-5 bg-white dark:bg-[#111827] space-y-4">
+                {/* Header */}
+                <div className="flex items-center justify-between pb-3 border-b border-[#E5EDF5] dark:border-[#1E293B]">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-[#087FC9]" />
+                    <h3 className="font-heading font-extrabold text-sm text-[#13213A] dark:text-white">
+                      Today's Appointment
+                    </h3>
+                  </div>
+                  <span className="px-2.5 py-0.5 text-[10px] font-bold uppercase rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    Verified Pass
+                  </span>
+                </div>
 
-          {/* 3. DESTINATION CARD */}
-          <div className="p-4 sm:p-6 rounded-2xl bg-white border border-slate-200/80 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3.5 sm:gap-4 w-full box-border">
-            <div className="space-y-1 text-left min-w-0">
-              <div className="flex items-center gap-1.5 text-xs text-sky-600 font-bold uppercase tracking-wider">
-                <i className="fa-solid fa-hospital text-slate-400"></i>
-                <span className="truncate">{currentPatient.hospitalName || 'Max Super Specialty Hospital, Mohali'}</span>
+                {/* Hospital Row with Thumbnail */}
+                <div className="p-3 rounded-2xl bg-[#F6F9FC] dark:bg-[#172033] flex items-center gap-3">
+                  <img
+                    src="https://images.unsplash.com/photo-1587351021759-3e566b6af7cc?w=200&auto=format&fit=crop&q=80"
+                    alt="Hospital Exterior"
+                    className="w-12 h-12 rounded-xl object-cover border border-[#E5EDF5] shrink-0"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-[#13213A] dark:text-white truncate">
+                      {currentPatient.hospitalName || 'Max Super Specialty Hospital, Mohali'}
+                    </p>
+                    <p className="text-[11px] text-[#64748B] dark:text-[#94A3B8] truncate">
+                      Phase 6, SAS Nagar, Mohali, Punjab 160055
+                    </p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-[#64748B] shrink-0" />
+                </div>
+
+                {/* Doctor Row with Avatar */}
+                <div className="p-3 rounded-2xl bg-[#F6F9FC] dark:bg-[#172033] flex items-center gap-3">
+                  <img
+                    src={getValidDoctorAvatar(liveDoctor?.id || 'doc-1', liveDoctor?.avatar)}
+                    alt="Doctor Avatar"
+                    className="w-12 h-12 rounded-xl object-cover border border-[#E5EDF5] shrink-0"
+                    onError={(e) => handleDoctorImageError(e, liveDoctor?.id || 'doc-1')}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-[#13213A] dark:text-white truncate">
+                      {liveDoctor?.name || 'Dr. Arvind Sharma, MD'}
+                    </p>
+                    <p className="text-[11px] text-[#087FC9] font-medium truncate">
+                      {currentPatient.department || 'Orthopedics'}
+                    </p>
+                    <p className="text-[10px] text-[#64748B] truncate">Consultant • 12 years exp.</p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-[#64748B] shrink-0" />
+                </div>
+
+                {/* 4 Fields Grid */}
+                <div className="grid grid-cols-2 gap-2.5 pt-1 text-xs">
+                  <div className="p-2.5 rounded-xl border border-[#E5EDF5] dark:border-[#1E293B]">
+                    <span className="text-[10px] text-[#64748B] flex items-center gap-1 mb-0.5">
+                      <Calendar className="w-3 h-3 text-[#087FC9]" /> Date
+                    </span>
+                    <span className="font-bold text-[#13213A] dark:text-white">10 Oct 2026</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl border border-[#E5EDF5] dark:border-[#1E293B]">
+                    <span className="text-[10px] text-[#64748B] flex items-center gap-1 mb-0.5">
+                      <Clock className="w-3 h-3 text-[#087FC9]" /> Time
+                    </span>
+                    <span className="font-bold text-[#13213A] dark:text-white">10:30 AM</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl border border-[#E5EDF5] dark:border-[#1E293B]">
+                    <span className="text-[10px] text-[#64748B] flex items-center gap-1 mb-0.5">
+                      <Activity className="w-3 h-3 text-[#087FC9]" /> Department
+                    </span>
+                    <span className="font-bold text-[#13213A] dark:text-white truncate block">{currentPatient.department}</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl border border-[#E5EDF5] dark:border-[#1E293B]">
+                    <span className="text-[10px] text-[#64748B] flex items-center gap-1 mb-0.5">
+                      <MapPin className="w-3 h-3 text-[#087FC9]" /> Location
+                    </span>
+                    <span className="font-bold text-[#13213A] dark:text-white truncate block">{currentPatient.opdBlock} | {currentPatient.floor}</span>
+                  </div>
+                </div>
+
+                {/* Actions: Digital Pass, SMS Route, Find Nearby Labs */}
+                <div className="grid grid-cols-3 gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowSlipModal(true)}
+                    className="p-2.5 rounded-xl bg-[#F6F9FC] dark:bg-[#172033] hover:bg-[#EBF5FB] border border-[#E5EDF5] dark:border-[#1E293B] text-xs font-semibold text-[#13213A] dark:text-white flex items-center justify-center gap-1.5 transition cursor-pointer"
+                    title="Print or view digital hospital pass"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-[#087FC9]" />
+                    <span>Digital Pass</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSendSMS}
+                    className="p-2.5 rounded-xl bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 border border-sky-200 dark:border-sky-900 text-xs font-semibold text-[#087FC9] dark:text-[#38BDF8] flex items-center justify-center gap-1.5 transition cursor-pointer"
+                    title="Send live tracking SMS link to phone"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>SMS Route</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowNearbyLabsModal(true);
+                      playHospitalChime();
+                    }}
+                    className="p-2.5 rounded-xl bg-[#F3E8FF] dark:bg-[#2E1065] hover:bg-[#EDE9FE] border border-[#DDD6FE] dark:border-[#581C87] text-xs font-bold text-[#7C3AED] dark:text-[#C084FC] flex items-center justify-center gap-1.5 transition cursor-pointer shadow-2xs"
+                    title="Find nearby pathology labs, diagnostics & scans"
+                  >
+                    <FlaskConical className="w-3.5 h-3.5" />
+                    <span>Nearby Labs</span>
+                  </button>
+                </div>
               </div>
-              <div className="text-base md:text-lg font-extrabold text-slate-900 truncate">
-                {liveDoctor?.name || currentPatient.doctorName}
+
+              {/* 2. NEARBY LABS & DIAGNOSTIC CENTERS CARD */}
+              <div className="card-healthcare p-5 bg-white dark:bg-[#111827] space-y-3.5">
+                {/* Header */}
+                <div className="flex items-center justify-between pb-2 border-b border-[#E5EDF5] dark:border-[#1E293B]">
+                  <div className="flex items-center gap-2">
+                    <FlaskConical className="w-4 h-4 text-[#8B5CF6]" />
+                    <h3 className="font-heading font-extrabold text-sm text-[#13213A] dark:text-white">
+                      Nearby Labs & Diagnostic Centers
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowNearbyLabsModal(true);
+                      playHospitalChime();
+                    }}
+                    className="text-xs text-[#087FC9] hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>View on Map</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {/* Mini Map Preview with Pulse Circle and Markers */}
+                <div
+                  onClick={() => {
+                    setShowNearbyLabsModal(true);
+                    playHospitalChime();
+                  }}
+                  className="h-32 rounded-2xl bg-gradient-to-tr from-sky-50 via-slate-50 to-indigo-50 dark:from-slate-900 dark:to-slate-800 border border-[#E5EDF5] dark:border-[#1E293B] relative overflow-hidden flex items-center justify-center cursor-pointer group shadow-inner"
+                >
+                  {/* Map grid lines background */}
+                  <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#087FC9_1px,transparent_1px)] [background-size:16px_16px]"></div>
+                  
+                  {/* Concentric radar circle */}
+                  <div className="absolute w-24 h-24 rounded-full border border-[#087FC9]/30 animate-ping"></div>
+                  <div className="absolute w-20 h-20 rounded-full border-2 border-dashed border-[#087FC9]/40"></div>
+                  
+                  {/* Center Hospital Marker */}
+                  <div className="relative z-10 w-9 h-9 rounded-2xl bg-[#087FC9] text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                    <Building2 className="w-4 h-4" />
+                  </div>
+
+                  {/* Surrounding lab pins */}
+                  <div className="absolute top-4 right-12 w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center text-[10px] shadow-sm">
+                    <MapPin className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="absolute bottom-5 left-10 w-6 h-6 rounded-full bg-purple-600 text-white flex items-center justify-center text-[10px] shadow-sm">
+                    <MapPin className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="absolute top-6 left-16 w-6 h-6 rounded-full bg-rose-500 text-white flex items-center justify-center text-[10px] shadow-sm">
+                    <MapPin className="w-3.5 h-3.5" />
+                  </div>
+
+                  <span className="absolute bottom-2 right-3 text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/80 dark:bg-black/60 text-[#13213A] dark:text-white backdrop-blur-xs">
+                    Click to open full map →
+                  </span>
+                </div>
+
+                {/* Lab List Items */}
+                <div className="space-y-2 pt-1 text-xs">
+                  {/* Lab 1 */}
+                  <div
+                    onClick={() => {
+                      setShowNearbyLabsModal(true);
+                      playHospitalChime();
+                    }}
+                    className="p-2.5 rounded-xl border border-[#E5EDF5] dark:border-[#1E293B] hover:bg-[#F6F9FC] dark:hover:bg-[#172033] flex items-center justify-between transition cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-lg bg-[#EBF5FB] dark:bg-[#082F49] text-[#087FC9] flex items-center justify-center shrink-0">
+                        <Building2 className="w-3.5 h-3.5" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-[#13213A] dark:text-white">Hospital Laboratory</p>
+                        <p className="text-[11px] text-[#64748B]">Inside Hospital</p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      Available
+                    </span>
+                  </div>
+
+                  {/* Lab 2 */}
+                  <div
+                    onClick={() => {
+                      setShowNearbyLabsModal(true);
+                      playHospitalChime();
+                    }}
+                    className="p-2.5 rounded-xl border border-[#E5EDF5] dark:border-[#1E293B] hover:bg-[#F6F9FC] dark:hover:bg-[#172033] flex items-center justify-between transition cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                        <MapPin className="w-3.5 h-3.5" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-[#13213A] dark:text-white">Apollo Diagnostics</p>
+                        <p className="text-[11px] text-[#64748B]">0.8 km • Open</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-[#64748B]" />
+                  </div>
+
+                  {/* Lab 3 */}
+                  <div
+                    onClick={() => {
+                      setShowNearbyLabsModal(true);
+                      playHospitalChime();
+                    }}
+                    className="p-2.5 rounded-xl border border-[#E5EDF5] dark:border-[#1E293B] hover:bg-[#F6F9FC] dark:hover:bg-[#172033] flex items-center justify-between transition cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+                        <MapPin className="w-3.5 h-3.5" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-[#13213A] dark:text-white">Dr. Lal PathLabs</p>
+                        <p className="text-[11px] text-[#64748B]">1.2 km • Open</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-[#64748B]" />
+                  </div>
+
+                  {/* Lab 4 */}
+                  <div
+                    onClick={() => {
+                      setShowNearbyLabsModal(true);
+                      playHospitalChime();
+                    }}
+                    className="p-2.5 rounded-xl border border-[#E5EDF5] dark:border-[#1E293B] hover:bg-[#F6F9FC] dark:hover:bg-[#172033] flex items-center justify-between transition cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+                        <MapPin className="w-3.5 h-3.5" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-[#13213A] dark:text-white">Metropolis Healthcare</p>
+                        <p className="text-[11px] text-[#64748B]">1.8 km • Open</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-[#64748B]" />
+                  </div>
+                </div>
               </div>
-              <div className="text-xs text-slate-500">
-                {currentPatient.department} • {currentPatient.opdBlock} | {currentPatient.floor} | <strong className="text-slate-900">{activeRoom}</strong>
-              </div>
             </div>
-
-            {/* Actions */}
-            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-              <button
-                type="button"
-                onClick={() => setShowSlipModal(true)}
-                className="flex-1 sm:flex-initial px-3.5 sm:px-4 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-200 flex items-center justify-center gap-1.5 transition cursor-pointer shadow-2xs whitespace-nowrap"
-              >
-                <i className="fa-solid fa-print text-slate-400"></i>
-                <span>Digital Pass</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleSendSMS}
-                className="flex-1 sm:flex-initial px-3.5 sm:px-4 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer shadow-sm whitespace-nowrap"
-              >
-                <i className="fa-solid fa-paper-plane"></i>
-                <span>SMS Route</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowNearbyLabsModal(true);
-                  playHospitalChime();
-                }}
-                className="flex-1 sm:flex-initial px-3.5 sm:px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-50 to-indigo-50 hover:from-purple-100 hover:to-indigo-100 text-purple-800 text-xs font-bold border border-purple-200 flex items-center justify-center gap-1.5 transition cursor-pointer shadow-2xs whitespace-nowrap"
-                title="Find nearby pathology laboratories, blood tests, and diagnostic imaging"
-              >
-                <i className="fa-solid fa-flask-vial text-purple-600"></i>
-                <span>🧪 Find Nearby Labs</span>
-              </button>
-            </div>
-          </div>
-
-          {/* SMS Notification Banner confirmation */}
-          {smsSentNotice && (
-            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center justify-between">
-              <span className="flex items-center gap-2.5">
-                <i className="fa-solid fa-circle-check text-emerald-600 text-base"></i>
-                <span>SMS Link sent to {currentPatient.phone}. Open link on any phone to track live!</span>
-              </span>
-              <button onClick={() => setSmsSentNotice(false)} className="text-emerald-800 font-bold cursor-pointer p-1">✕</button>
-            </div>
-          )}
-
-          {/* 4. ACTION BUTTON GROUPING (Responsive Mobile Grid) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5 w-full">
-            <button
-              type="button"
-              onClick={() => {
-                setShowNearbyLabsModal(true);
-                playHospitalChime();
-              }}
-              className="p-3.5 rounded-2xl border bg-gradient-to-br from-purple-50 via-white to-indigo-50/70 border-purple-200 hover:border-purple-300 text-purple-900 text-xs font-extrabold flex items-center justify-center gap-2.5 transition cursor-pointer shadow-2xs select-none active:scale-[0.98]"
-            >
-              <i className="fa-solid fa-flask-vial text-purple-600 text-base"></i>
-              <span>Nearby Labs & Diagnostics</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleToggleWheelchairInActiveToken}
-              className={`p-3.5 rounded-2xl border text-xs font-bold flex items-center justify-center gap-2.5 transition cursor-pointer shadow-2xs select-none active:scale-[0.98] ${
-                currentPatient.wheelchairRequest || wheelchairRequested
-                  ? 'bg-emerald-50 border-emerald-300 text-emerald-800 ring-2 ring-emerald-500/20'
-                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300'
-              }`}
-            >
-              <i className={`fa-solid fa-wheelchair text-sm ${currentPatient.wheelchairRequest || wheelchairRequested ? 'text-emerald-600' : 'text-sky-500'}`}></i>
-              <span>{currentPatient.wheelchairRequest || wheelchairRequested ? 'Wheelchair Dispatched' : 'Request Wheelchair'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleShareWhatsApp}
-              className="p-3.5 rounded-2xl border bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-700 text-xs font-bold flex items-center justify-center gap-2.5 transition cursor-pointer shadow-2xs select-none active:scale-[0.98]"
-            >
-              <i className="fa-brands fa-whatsapp text-emerald-500 text-base"></i>
-              <span>Share with Family</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowNotificationModal(true)}
-              className="p-3.5 rounded-2xl border bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-700 text-xs font-bold flex items-center justify-center gap-2.5 transition cursor-pointer shadow-2xs select-none active:scale-[0.98]"
-            >
-              <i className="fa-solid fa-bell text-amber-500 text-sm"></i>
-              <span>OPD Announcements</span>
-            </button>
           </div>
 
           {/* 5. PRE-TEST STATUS PILL BANNER */}
@@ -1916,6 +2376,14 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
           onShowToast={notify}
         />
       )}
+
+      {/* MEDICAL FILE MODAL */}
+      <MedicalFileModal
+        isOpen={showMedicalFileModal}
+        onClose={() => setShowMedicalFileModal(false)}
+        currentUser={currentUser}
+        onShowToast={notify}
+      />
     </div>
   );
 

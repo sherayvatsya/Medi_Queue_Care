@@ -1,21 +1,49 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-heading: 'Manrope', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --color-primary: #087FC9;
+  --color-primary-deep: #0B5E97;
+  --color-navy: #13213A;
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
 }
 
 :root {
-  --navy: #0f172a;
-  --teal: #0ea5e9;
-  --teal-dark: #0284c7;
-  --bg: #f8fafc;
-  --text: #334155;
-  --text-dark: #0f172a;
-  --white: #ffffff;
-  --border: #e2e8f0;
-  --green: #22c55e;
-  --amber: #f59e0b;
-  --red: #ef4444;
+  --primary: #087FC9;
+  --primary-deep: #0B5E97;
+  --navy: #13213A;
+  --bg: #F6F9FC;
+  --card: #FFFFFF;
+  --border: #E5EDF5;
+  --success: #16B981;
+  --warning: #F59E0B;
+  --danger: #EF4444;
+  --lab-purple: #8B5CF6;
+  --lab-purple-bg: #F3E8FF;
+  --text: #13213A;
+  --text-navy: #13213A;
+  --text-muted: #64748B;
+  --white: #FFFFFF;
+  color-scheme: light;
+}
+
+.dark, html.dark, body.dark {
+  --bg: #0B1220;
+  --card: #111827;
+  --border: #1E293B;
+  --text: #F1F5F9;
+  --text-navy: #FFFFFF;
+  --text-muted: #94A3B8;
+  --lab-purple-bg: #2E1065;
+  color-scheme: dark;
 }
 
 html, body {
@@ -25,8 +53,17 @@ html, body {
   padding: 0;
   background-color: var(--bg);
   color: var(--text);
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   overflow-x: hidden;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+h1, h2, h3, h4, .font-heading {
+  font-family: 'Manrope', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.font-mono, code, .font-mono-num {
+  font-family: 'JetBrains Mono', monospace;
 }
 
 #root {
@@ -36,6 +73,113 @@ html, body {
   display: flex;
   flex-direction: column;
   overflow-x: hidden;
+}
+
+/* Universal Dark Mode Styles for Form Controls and Surfaces */
+.dark input,
+.dark select,
+.dark textarea {
+  color-scheme: dark;
+}
+
+.dark .bg-white {
+  background-color: #111827;
+}
+
+.dark .bg-slate-50 {
+  background-color: #172033;
+}
+
+.dark .bg-slate-100 {
+  background-color: #1e293b;
+}
+
+.dark .border-slate-100,
+.dark .border-slate-200,
+.dark .border-slate-300 {
+  border-color: #1e293b;
+}
+
+.dark .text-slate-900,
+.dark .text-slate-800 {
+  color: #f1f5f9;
+}
+
+.dark .text-slate-700,
+.dark .text-slate-600 {
+  color: #cbd5e1;
+}
+
+.dark .text-slate-500,
+.dark .text-slate-400 {
+  color: #94a3b8;
+}
+
+.dark .bg-sky-50,
+.dark .bg-sky-50\/50,
+.dark .bg-sky-50\/70 {
+  background-color: rgba(8, 127, 201, 0.12);
+}
+
+.dark .bg-emerald-50,
+.dark .bg-emerald-50\/70,
+.dark .bg-emerald-50\/80 {
+  background-color: rgba(16, 185, 129, 0.12);
+}
+
+.dark .bg-rose-50,
+.dark .bg-rose-50\/70,
+.dark .bg-rose-50\/80 {
+  background-color: rgba(239, 68, 68, 0.12);
+}
+
+.dark .text-sky-700,
+.dark .text-sky-800,
+.dark .text-sky-900,
+.dark .text-sky-950 {
+  color: #38bdf8;
+}
+
+.dark .text-emerald-700,
+.dark .text-emerald-800,
+.dark .text-emerald-900,
+.dark .text-emerald-950 {
+  color: #34d399;
+}
+
+.dark .text-rose-700,
+.dark .text-rose-800,
+.dark .text-rose-900,
+.dark .text-rose-950 {
+  color: #f87171;
+}
+
+.dark .border-sky-200,
+.dark .border-sky-300 {
+  border-color: rgba(56, 189, 248, 0.25);
+}
+
+.dark .border-emerald-200,
+.dark .border-emerald-300 {
+  border-color: rgba(52, 211, 153, 0.25);
+}
+
+.dark .border-rose-200,
+.dark .border-rose-300 {
+  border-color: rgba(248, 113, 113, 0.25);
+}
+
+/* Card Styling Matching Reference */
+.card-healthcare {
+  background-color: var(--card);
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-healthcare:hover {
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.06);
 }
 
 /* Fluid responsive typography utilities */
@@ -68,11 +212,21 @@ html, body {
   color: #92400e;
   border: 1px solid #fde68a;
 }
+.dark .badge-amber {
+  background-color: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.3);
+}
 
 .badge-green {
   background-color: #dcfce7;
   color: #166534;
   border: 1px solid #bbf7d0;
+}
+.dark .badge-green {
+  background-color: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.3);
 }
 
 .badge-red {
@@ -80,11 +234,32 @@ html, body {
   color: #991b1b;
   border: 1px solid #fecaca;
 }
+.dark .badge-red {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.3);
+}
 
 .badge-teal, .badge-blue {
   background-color: #e0f2fe;
   color: #0369a1;
   border: 1px solid #bae6fd;
+}
+.dark .badge-teal, .dark .badge-blue {
+  background-color: rgba(8, 127, 201, 0.15);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.3);
+}
+
+.badge-purple {
+  background-color: #f3e8ff;
+  color: #7c3aed;
+  border: 1px solid #ddd6fe;
+}
+.dark .badge-purple {
+  background-color: rgba(139, 92, 246, 0.15);
+  color: #c084fc;
+  border-color: rgba(139, 92, 246, 0.3);
 }
 
 .badge-slate {
@@ -92,13 +267,120 @@ html, body {
   color: #475569;
   border: 1px solid #e2e8f0;
 }
+.dark .badge-slate {
+  background-color: rgba(51, 65, 85, 0.5);
+  color: #94a3b8;
+  border-color: rgba(71, 85, 105, 0.5);
+}
+
+/* Live Dot Pulse Effect */
+@keyframes livePulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(22, 185, 129, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px rgba(22, 185, 129, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(22, 185, 129, 0);
+  }
+}
+
+.live-indicator {
+  animation: livePulse 2s infinite cubic-bezier(0.4, 0, 0.6, 1);
+}
 
 /* Card Styling */
 .card-polish {
-  background-color: #ffffff;
-  border-radius: 0.875rem;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+  background-color: var(--card);
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+}
+
+/* Keep the patient sign-in overlay as a light glass card, even when the app shell is in dark mode. */
+.patient-auth-card {
+  background: rgba(255, 255, 255, 0.94) !important;
+  color: #10244A !important;
+  color-scheme: light;
+}
+
+.patient-auth-card > div:first-child {
+  background: #F8FAFC !important;
+  border-color: #DCE8F2 !important;
+}
+
+.patient-auth-card h2,
+.patient-auth-card h3,
+.patient-auth-card label,
+.patient-auth-card strong {
+  color: #10244A !important;
+}
+
+.patient-auth-card p,
+.patient-auth-card span {
+  color: inherit;
+}
+
+.patient-auth-card input,
+.patient-auth-card select,
+.patient-auth-card textarea {
+  background: #FFFFFF !important;
+  border-color: #DCE7F0 !important;
+  color: #10244A !important;
+}
+
+.patient-auth-card input::placeholder,
+.patient-auth-card textarea::placeholder {
+  color: #94A3B8 !important;
+}
+
+.patient-auth-card button:not([class*="bg-[#0B9FE3]"]):not([class*="bg-rose"]):not([class*="bg-emerald"]) {
+  color: #10244A;
+}
+
+.patient-auth-card .auth-tabs {
+  background: #F8FAFC !important;
+  border-color: #DCE8F2 !important;
+}
+
+.patient-auth-card .auth-tabs button {
+  background: transparent !important;
+  color: #64748B !important;
+}
+
+.patient-auth-card .auth-tabs button[class*="text-[#0B9FE3]"] {
+  background: #FFFFFF !important;
+  color: #0B9FE3 !important;
+}
+
+.patient-auth-card .auth-google-button,
+.patient-auth-card .auth-demo-button {
+  background: #FFFFFF !important;
+  border-color: #DCE7F0 !important;
+  color: #14213D !important;
+}
+
+.patient-auth-card .auth-demo-button {
+  background: #F8FAFC !important;
+}
+
+.patient-auth-card .auth-method-switch {
+  background: #F1F5F9 !important;
+  border-color: #E2E8F0 !important;
+}
+
+.patient-auth-card .auth-method-switch button {
+  background: transparent !important;
+  color: #64748B !important;
+}
+
+.patient-auth-card .auth-method-switch button[class*="text-[#0B9FE3]"] {
+  background: #FFFFFF !important;
+  color: #0B9FE3 !important;
 }
 
 /* Custom Scrollbars */
@@ -107,11 +389,14 @@ html, body {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: var(--bg);
 }
 ::-webkit-scrollbar-thumb {
   background: #cbd5e1;
   border-radius: 3px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;

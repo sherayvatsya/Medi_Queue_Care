@@ -1,14 +1,20 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Doctor, Patient, ICMRProtocol, PatientUser, StaffUser, UserRole, StaffSection } from './types';
-import { INITIAL_DOCTORS, INITIAL_PATIENTS, INITIAL_PROTOCOLS } from './data/mockData';
+import { INITIAL_DOCTORS, INITIAL_PATIENTS, INITIAL_PROTOCOLS, INITIAL_PATIENT_USERS } from './data/mockData';
 import { Header, PatientNavView } from './components/Header';
 import { PatientPortal } from './components/PatientPortal';
+import { PatientAuth } from './components/PatientAuth';
 import { StaffDashboard } from './components/StaffDashboard';
 import { TeleconsultModule } from './components/TeleconsultModule';
 import { HospitalLeafletMap } from './components/HospitalLeafletMap';
 import { HospitalLogin } from './components/HospitalLogin';
 import { OTPAuthModal } from './components/OTPAuthModal';
 import { EditProfileModal } from './components/EditProfileModal';
+import { Sidebar, SidebarTab } from './components/Sidebar';
+import { SupportModal } from './components/SupportModal';
+import { MobileBottomNav } from './components/MobileBottomNav';
+import { MedicalFileModal } from './components/MedicalFileModal';
+import { NearbyLabsModal } from './components/NearbyLabsModal';
 import { playHospitalChime, playUrgentAlertSound } from './utils/audio';
 import { getValidDoctorAvatar } from './utils/doctorAvatar';
 import {
@@ -42,9 +48,9 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<PatientUser | null>(() => {
     try {
       const savedPatient = localStorage.getItem('mediqueue_patient_user');
-      return savedPatient ? JSON.parse(savedPatient) : null;
+      return savedPatient ? JSON.parse(savedPatient) : INITIAL_PATIENT_USERS[0];
     } catch {
-      return null;
+      return INITIAL_PATIENT_USERS[0];
     }
   });
 
@@ -71,7 +77,12 @@ export default function App() {
     return hash === 'hospital-login';
   });
 
-  // Modals & UI Controls
+  // Sidebar & Modal UI Controls
+  const [activeSidebarTab, setActiveSidebarTab] = useState<SidebarTab>('dashboard');
+  const [showSupportModal, setShowSupportModal] = useState<boolean>(false);
+  const [showAppMedicalFileModal, setShowAppMedicalFileModal] = useState<boolean>(false);
+  const [medicalFileInitialTab, setMedicalFileInitialTab] = useState<'overview' | 'history' | 'allergies' | 'medications' | 'prescriptions' | 'reports'>('overview');
+  const [showAppNearbyLabsModal, setShowAppNearbyLabsModal] = useState<boolean>(false);
   const [isMobileFrameActive, setIsMobileFrameActive] = useState<boolean>(false);
   const [showGlobalAuthModal, setShowGlobalAuthModal] = useState<boolean>(false);
   const [showPatientProfileModal, setShowPatientProfileModal] = useState<boolean>(false);
@@ -86,11 +97,11 @@ export default function App() {
     try {
       const savedPatient = localStorage.getItem('mediqueue_patient_user');
       if (savedPatient) {
-        return localStorage.getItem('mediqueue_active_patient_id') || '';
+        return localStorage.getItem('mediqueue_active_patient_id') || 'pat-3';
       }
-      return '';
+      return 'pat-3';
     } catch {
-      return '';
+      return 'pat-3';
     }
   });
 
@@ -128,6 +139,8 @@ export default function App() {
       patient_pass: 'patient-pass',
       teleconsult: 'teleconsult',
       hospital_map: 'hospital-map',
+      appointments: 'appointments',
+      medical_file: 'medical-file',
     };
     updateUrlHash(hashMap[nav] || 'patient-pass');
   };
@@ -641,16 +654,115 @@ export default function App() {
   const activeWheelchairCount = patients.filter((p) => p.wheelchairRequest && p.wheelchairRequest.status !== 'completed').length;
   const unreadAlerts = patients.filter((p) => p.triageCategory === 'urgent_er').length + activeWheelchairCount;
 
+  // Handle Sidebar Tab Selection
+  const handleSidebarTabSelect = (tab: SidebarTab) => {
+    setActiveSidebarTab(tab);
+    if (tab === 'dashboard' || tab === 'patient_pass') {
+      handlePatientNavChange('patient_pass');
+    } else if (tab === 'appointments') {
+      handlePatientNavChange('patient_pass');
+    } else if (tab === 'teleconsult') {
+      handlePatientNavChange('teleconsult');
+    } else if (tab === 'medical_file') {
+      setMedicalFileInitialTab('overview');
+      setShowAppMedicalFileModal(true);
+    } else if (tab === 'prescriptions') {
+      setMedicalFileInitialTab('prescriptions');
+      setShowAppMedicalFileModal(true);
+    } else if (tab === 'reports') {
+      setMedicalFileInitialTab('reports');
+      setShowAppMedicalFileModal(true);
+    } else if (tab === 'nearby_labs') {
+      setShowAppNearbyLabsModal(true);
+      playHospitalChime();
+    } else if (tab === 'profile_settings') {
+      setShowPatientProfileModal(true);
+    }
+  };
+
+  // If unauthenticated patient user and not in Hospital Staff Login, render dedicated PatientAuth page
+  if (!currentUser && userRole === 'patient' && !isHospitalLoginOpen) {
+    return (
+      <div className="min-h-screen bg-[#F6FAFE] dark:bg-[#0B1220] text-[#14213D] dark:text-[#F1F5F9] flex flex-col transition-colors duration-200">
+        <PatientAuth
+          onLoginSuccess={handleUserLogin}
+          onShowToast={showToast}
+          onBackToHome={() => handleUserLogin(INITIAL_PATIENT_USERS[0])}
+          onOpenSupportModal={() => setShowSupportModal(true)}
+          onOpenHospitalStaffLogin={() => {
+            setIsHospitalLoginOpen(true);
+            updateUrlHash('hospital-login');
+          }}
+        />
+
+        {/* Support Concierge Modal */}
+        <SupportModal
+          isOpen={showSupportModal}
+          onClose={() => setShowSupportModal(false)}
+          onShowToast={showToast}
+        />
+
+        {/* Real-time Toast Notifications */}
+        {toastMessage && (
+          <div className="fixed bottom-4 right-4 sm:bottom-5 sm:right-5 z-50 animate-in slide-in-from-bottom-5 duration-300 max-w-[calc(100vw-2rem)]">
+            <div
+              className={`p-3.5 sm:p-4 rounded-2xl border shadow-xl flex items-start gap-3 max-w-sm ${
+                toastMessage.type === 'urgent'
+                  ? 'bg-rose-50 border-rose-400 text-rose-900'
+                  : toastMessage.type === 'success'
+                  ? 'bg-emerald-50 border-emerald-400 text-emerald-900'
+                  : 'bg-white dark:bg-[#111827] border-[#E5EDF5] dark:border-[#1E293B] text-[#13213A] dark:text-white'
+              }`}
+            >
+              <div
+                className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 ${
+                  toastMessage.type === 'urgent'
+                    ? 'bg-rose-500 text-white'
+                    : toastMessage.type === 'success'
+                    ? 'bg-emerald-500 text-white'
+                    : 'bg-[#087FC9] text-white'
+                }`}
+              >
+                <i
+                  className={`fa-solid ${
+                    toastMessage.type === 'urgent'
+                      ? 'fa-triangle-exclamation'
+                      : toastMessage.type === 'success'
+                      ? 'fa-check'
+                      : 'fa-bell'
+                  } text-xs`}
+                ></i>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h5 className="font-bold text-xs leading-tight">{toastMessage.title}</h5>
+                <p className="text-[11px] opacity-90 mt-0.5 leading-snug break-words">
+                  {toastMessage.description}
+                </p>
+              </div>
+              <button
+                onClick={() => setToastMessage(null)}
+                className="text-[#64748B] hover:text-[#13213A] dark:hover:text-white text-xs cursor-pointer p-1 shrink-0"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-700 flex flex-col selection:bg-sky-500 selection:text-white box-border overflow-x-hidden">
-      {/* Top Header - Strictly Role-Based Navigation
-          Patient Mode: Patient Pass | Tele-Consult | Profile | Logout
-          Staff Mode: Staff Dashboard | Queue Management | Doctor Availability | Patient Management | Reports | Hospital Profile | Logout
-      */}
+    <div className="min-h-screen bg-[#F6F9FC] dark:bg-[#0B1220] text-[#13213A] dark:text-[#F1F5F9] flex flex-col selection:bg-[#087FC9] selection:text-white box-border overflow-x-hidden transition-colors duration-200">
+      {/* Top Header - Strictly Role-Based Navigation matching Stitch aesthetic */}
       <Header
         currentRole={userRole}
         patientNavView={patientNavView}
-        onPatientNavChange={handlePatientNavChange}
+        onPatientNavChange={(nav) => {
+          handlePatientNavChange(nav);
+          if (nav === 'patient_pass') setActiveSidebarTab('dashboard');
+          else if (nav === 'teleconsult') setActiveSidebarTab('teleconsult');
+        }}
         activeHospitalName={activeHospitalName}
         activeStaffSection={activeStaffSection}
         onStaffSectionChange={handleStaffSectionChange}
@@ -666,81 +778,139 @@ export default function App() {
         onSignOut={handleLogout}
       />
 
-      {/* Main App Body */}
-      <main className="flex-1 w-full max-w-7xl mx-auto p-2.5 sm:p-6 box-border">
-        {/* VIEW 1: HOSPITAL LOGIN (Displayed when hospital login is requested) */}
-        {isHospitalLoginOpen ? (
-          <div className="animate-in fade-in duration-200">
-            <HospitalLogin
-              onLoginSuccess={handleStaffLoginSuccess}
-              onCancel={() => {
-                setIsHospitalLoginOpen(false);
-                updateUrlHash('patient-pass');
-              }}
-              onShowToast={showToast}
+      {/* Main Layout Container with Left Sidebar on Desktop */}
+      <div className="flex-1 w-full max-w-[1440px] mx-auto flex flex-col md:flex-row pb-16 md:pb-0">
+        {/* Left Sidebar on Desktop (Visible for Patient Portal when not in Hospital Staff Login) */}
+        {!isHospitalLoginOpen && userRole === 'patient' && (
+          <div className="hidden md:block">
+            <Sidebar
+              activeTab={activeSidebarTab}
+              onSelectTab={handleSidebarTabSelect}
+              onOpenSupportModal={() => setShowSupportModal(true)}
             />
-          </div>
-        ) : userRole === 'staff' && staffUser ? (
-          /* VIEW 2: HOSPITAL STAFF MANAGEMENT SUITE
-             (Renders only for verified Hospital Staff with dedicated staff sections) */
-          <div className="animate-in fade-in duration-200">
-            <StaffDashboard
-              doctors={doctors}
-              patients={patients}
-              protocols={protocols}
-              staffUser={staffUser}
-              activeSection={activeStaffSection}
-              onSectionChange={handleStaffSectionChange}
-              onUpdateDoctor={handleUpdateDoctor}
-              onUpdatePatient={handleUpdatePatient}
-              onCallNextPatient={handleCallNextPatient}
-              onCompletePatient={handleCompletePatient}
-              onEscalateToER={handleEscalateToER}
-              onToggleProtocol={handleToggleProtocol}
-              onAddProtocol={handleAddProtocol}
-            />
-          </div>
-        ) : (
-          /* VIEW 3: PATIENT PORTAL & TELE-CONSULT
-             (Strictly for patients and unauthenticated guests) */
-          <div className="animate-in fade-in duration-200">
-            {patientNavView === 'patient_pass' ? (
-              <PatientPortal
-                doctors={doctors}
-                currentPatient={currentPatient}
-                currentUser={currentUser}
-                onUserLogin={handleUserLogin}
-                onUserLogout={handleLogout}
-                onUpdateUserProfile={handleUpdateUserProfile}
-                onGenerateToken={handleGenerateToken}
-                onUpdatePatient={handleUpdatePatient}
-                isMobileFrame={isMobileFrameActive}
-                onToggleMobileFrame={() => setIsMobileFrameActive(!isMobileFrameActive)}
-                onShowToast={showToast}
-                onRequestTeleconsult={() => handlePatientNavChange('teleconsult')}
-                onOpenHospitalMap={() => handlePatientNavChange('hospital_map')}
-              />
-            ) : patientNavView === 'teleconsult' ? (
-              <TeleconsultModule
-                doctors={doctors}
-                currentUser={currentUser}
-                onUserLogin={(user) => handleUserLogin(user, 'teleconsult')}
-                onShowToast={showToast}
-                onReturnToOPD={() => handlePatientNavChange('patient_pass')}
-                onBookInPersonInstead={() => handlePatientNavChange('patient_pass')}
-              />
-            ) : (
-              <HospitalLeafletMap
-                onShowToast={showToast}
-                onSelectHospitalForBooking={(hosp) => {
-                  showToast('Hospital Selected', `Switched to ${hosp.name}. Proceed with OPD registration.`, 'success');
-                  handlePatientNavChange('patient_pass');
-                }}
-              />
-            )}
           </div>
         )}
-      </main>
+
+        {/* Main App Body */}
+        <main className="flex-1 min-w-0 p-2.5 sm:p-6 box-border">
+          {/* VIEW 1: HOSPITAL LOGIN (Displayed when hospital login is requested) */}
+          {isHospitalLoginOpen ? (
+            <div className="animate-in fade-in duration-200">
+              <HospitalLogin
+                onLoginSuccess={handleStaffLoginSuccess}
+                onCancel={() => {
+                  setIsHospitalLoginOpen(false);
+                  updateUrlHash('patient-pass');
+                }}
+                onShowToast={showToast}
+              />
+            </div>
+          ) : userRole === 'staff' && staffUser ? (
+            /* VIEW 2: HOSPITAL STAFF MANAGEMENT SUITE
+               (Renders only for verified Hospital Staff with dedicated staff sections) */
+            <div className="animate-in fade-in duration-200">
+              <StaffDashboard
+                doctors={doctors}
+                patients={patients}
+                protocols={protocols}
+                staffUser={staffUser}
+                activeSection={activeStaffSection}
+                onSectionChange={handleStaffSectionChange}
+                onUpdateDoctor={handleUpdateDoctor}
+                onUpdatePatient={handleUpdatePatient}
+                onCallNextPatient={handleCallNextPatient}
+                onCompletePatient={handleCompletePatient}
+                onEscalateToER={handleEscalateToER}
+                onToggleProtocol={handleToggleProtocol}
+                onAddProtocol={handleAddProtocol}
+              />
+            </div>
+          ) : (
+            /* VIEW 3: PATIENT PORTAL & TELE-CONSULT
+               (Strictly for patients and unauthenticated guests) */
+            <div className="animate-in fade-in duration-200">
+              {patientNavView === 'patient_pass' ? (
+                <PatientPortal
+                  doctors={doctors}
+                  currentPatient={currentPatient}
+                  currentUser={currentUser}
+                  onUserLogin={handleUserLogin}
+                  onUserLogout={handleLogout}
+                  onUpdateUserProfile={handleUpdateUserProfile}
+                  onGenerateToken={handleGenerateToken}
+                  onUpdatePatient={handleUpdatePatient}
+                  isMobileFrame={isMobileFrameActive}
+                  onToggleMobileFrame={() => setIsMobileFrameActive(!isMobileFrameActive)}
+                  onShowToast={showToast}
+                  onRequestTeleconsult={() => handlePatientNavChange('teleconsult')}
+                  onOpenHospitalMap={() => handlePatientNavChange('hospital_map')}
+                />
+              ) : patientNavView === 'teleconsult' ? (
+                <TeleconsultModule
+                  doctors={doctors}
+                  currentUser={currentUser}
+                  onUserLogin={(user) => handleUserLogin(user, 'teleconsult')}
+                  onShowToast={showToast}
+                  onReturnToOPD={() => handlePatientNavChange('patient_pass')}
+                  onBookInPersonInstead={() => handlePatientNavChange('patient_pass')}
+                />
+              ) : (
+                <HospitalLeafletMap
+                  onShowToast={showToast}
+                  onSelectHospitalForBooking={(hosp) => {
+                    showToast('Hospital Selected', `Switched to ${hosp.name}. Proceed with OPD registration.`, 'success');
+                    handlePatientNavChange('patient_pass');
+                  }}
+                />
+              )}
+            </div>
+          )}
+        </main>
+      </div>
+
+      {/* Mobile Bottom Navigation Bar (md:hidden) */}
+      {!isHospitalLoginOpen && userRole === 'patient' && (
+        <MobileBottomNav
+          currentView={patientNavView}
+          onNavigate={(view) => {
+            handlePatientNavChange(view);
+            if (view === 'patient_pass') setActiveSidebarTab('dashboard');
+            else if (view === 'teleconsult') setActiveSidebarTab('teleconsult');
+          }}
+          onOpenLabs={() => {
+            setShowAppNearbyLabsModal(true);
+            playHospitalChime();
+          }}
+          onOpenProfile={() => setShowPatientProfileModal(true)}
+          activeTokenNumber={currentPatient?.tokenNumber}
+        />
+      )}
+
+      {/* Support Concierge Modal */}
+      <SupportModal
+        isOpen={showSupportModal}
+        onClose={() => setShowSupportModal(false)}
+        onShowToast={showToast}
+      />
+
+      {/* Application Level Medical File Modal */}
+      <MedicalFileModal
+        isOpen={showAppMedicalFileModal}
+        onClose={() => setShowAppMedicalFileModal(false)}
+        currentUser={currentUser}
+        initialTab={medicalFileInitialTab}
+        onShowToast={showToast}
+      />
+
+      {/* Application Level Nearby Labs Modal */}
+      {(currentPatient || patients[0]) && (
+        <NearbyLabsModal
+          isOpen={showAppNearbyLabsModal}
+          onClose={() => setShowAppNearbyLabsModal(false)}
+          booking={currentPatient || patients[0]}
+          onShowToast={showToast}
+        />
+      )}
 
       {/* Real-time Toast Notifications */}
       {toastMessage && (
@@ -751,7 +921,7 @@ export default function App() {
                 ? 'bg-rose-50 border-rose-400 text-rose-900'
                 : toastMessage.type === 'success'
                 ? 'bg-emerald-50 border-emerald-400 text-emerald-900'
-                : 'bg-white border-slate-200 text-slate-900'
+                : 'bg-white dark:bg-[#111827] border-[#E5EDF5] dark:border-[#1E293B] text-[#13213A] dark:text-white'
             }`}
           >
             <div
@@ -760,7 +930,7 @@ export default function App() {
                   ? 'bg-rose-500 text-white'
                   : toastMessage.type === 'success'
                   ? 'bg-emerald-500 text-white'
-                  : 'bg-sky-500 text-white'
+                  : 'bg-[#087FC9] text-white'
               }`}
             >
               <i
@@ -781,7 +951,7 @@ export default function App() {
             </div>
             <button
               onClick={() => setToastMessage(null)}
-              className="text-slate-400 hover:text-slate-700 text-xs cursor-pointer p-1 shrink-0"
+              className="text-[#64748B] hover:text-[#13213A] dark:hover:text-white text-xs cursor-pointer p-1 shrink-0"
             >
               ✕
             </button>
@@ -807,15 +977,15 @@ export default function App() {
       />
 
       {/* Footer with Role Indicator & Clean Hospital Staff link */}
-      <footer className="border-t border-slate-200/80 bg-white py-3.5 px-4 text-center text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+      <footer className="border-t border-[#E5EDF5] dark:border-[#1E293B] bg-white dark:bg-[#111827] py-3.5 px-4 text-center text-xs text-[#64748B] dark:text-[#94A3B8] transition-colors duration-200">
+        <div className="max-w-[1440px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <span className="font-bold text-slate-900">Medi-Queue™</span>
-            <span>— Smart Hospital Queue & Real-time Platform</span>
+            <span className="font-heading font-extrabold text-[#13213A] dark:text-white">Medi Queue™</span>
+            <span>— Smarter Hospitals. Shorter Queues.</span>
           </div>
-          <div className="flex items-center gap-3 text-[11px] text-slate-500 flex-wrap justify-center">
+          <div className="flex items-center gap-3 text-[11px] text-[#64748B] dark:text-[#94A3B8] flex-wrap justify-center">
             <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+              <span className="w-2 h-2 rounded-full bg-[#16B981]"></span>
               {userRole === 'staff' ? 'Staff Session Active' : 'Patient Portal Mode'}
             </span>
             <span>•</span>
@@ -827,7 +997,7 @@ export default function App() {
                     setIsHospitalLoginOpen(true);
                     updateUrlHash('hospital-login');
                   }}
-                  className="text-sky-600 hover:text-sky-700 hover:underline font-semibold cursor-pointer flex items-center gap-1"
+                  className="text-[#087FC9] hover:underline font-semibold cursor-pointer flex items-center gap-1"
                 >
                   <i className="fa-solid fa-user-shield text-[10px]"></i>
                   <span>Hospital Staff Access</span>
@@ -835,7 +1005,7 @@ export default function App() {
                 <span>•</span>
               </>
             )}
-            <span>ICMR Clinical Board</span>
+            <span>ICMR Clinical Board Verified</span>
           </div>
         </div>
       </footer>

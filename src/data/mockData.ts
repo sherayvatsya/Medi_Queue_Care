@@ -364,7 +364,7 @@ export const INITIAL_PATIENTS: Patient[] = [
     id: 'pat-3',
     userId: 'user-1',
     tokenNumber: 'A-42',
-    name: 'Rajesh Mukherjee (Demo User)',
+    name: 'Rajesh Mukherjee',
     age: 52,
     gender: 'Male',
     phone: '+91 98200 55432',
