@@ -10,6 +10,8 @@ import { EditProfileModal } from './EditProfileModal';
 import { playHospitalChime, playUrgentAlertSound, announceTokenVoice } from '../utils/audio';
 import { exportTokenToPDF } from '../utils/pdfExport';
 import { getValidDoctorAvatar, handleDoctorImageError } from '../utils/doctorAvatar';
+import { BookingConfirmationModal } from './BookingConfirmationModal';
+import { NearbyLabsModal } from './NearbyLabsModal';
 
 interface PatientPortalProps {
   doctors: Doctor[];
@@ -85,6 +87,9 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
   const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState<boolean>(false);
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
+  const [showBookingConfirmation, setShowBookingConfirmation] = useState<boolean>(false);
+  const [showNearbyLabsModal, setShowNearbyLabsModal] = useState<boolean>(false);
+  const [latestBookedPatient, setLatestBookedPatient] = useState<Patient | null>(null);
   const [smsSentNotice, setSmsSentNotice] = useState<boolean>(false);
   const [copiedId, setCopiedId] = useState<boolean>(false);
   const [isSavingPDF, setIsSavingPDF] = useState<boolean>(false);
@@ -265,6 +270,8 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
 
     onGenerateToken(newPatient);
     setCurrentStep('token_active');
+    setLatestBookedPatient(newPatient);
+    setShowBookingConfirmation(true);
 
     if (isEmergency) {
       playUrgentAlertSound();
@@ -1476,7 +1483,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
             </div>
 
             {/* Actions */}
-            <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
               <button
                 type="button"
                 onClick={() => setShowSlipModal(true)}
@@ -1493,6 +1500,18 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                 <i className="fa-solid fa-paper-plane"></i>
                 <span>SMS Route</span>
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowNearbyLabsModal(true);
+                  playHospitalChime();
+                }}
+                className="flex-1 sm:flex-initial px-3.5 sm:px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-50 to-indigo-50 hover:from-purple-100 hover:to-indigo-100 text-purple-800 text-xs font-bold border border-purple-200 flex items-center justify-center gap-1.5 transition cursor-pointer shadow-2xs whitespace-nowrap"
+                title="Find nearby pathology laboratories, blood tests, and diagnostic imaging"
+              >
+                <i className="fa-solid fa-flask-vial text-purple-600"></i>
+                <span>🧪 Find Nearby Labs</span>
+              </button>
             </div>
           </div>
 
@@ -1508,7 +1527,19 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
           )}
 
           {/* 4. ACTION BUTTON GROUPING (Responsive Mobile Grid) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-3.5 w-full">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5 w-full">
+            <button
+              type="button"
+              onClick={() => {
+                setShowNearbyLabsModal(true);
+                playHospitalChime();
+              }}
+              className="p-3.5 rounded-2xl border bg-gradient-to-br from-purple-50 via-white to-indigo-50/70 border-purple-200 hover:border-purple-300 text-purple-900 text-xs font-extrabold flex items-center justify-center gap-2.5 transition cursor-pointer shadow-2xs select-none active:scale-[0.98]"
+            >
+              <i className="fa-solid fa-flask-vial text-purple-600 text-base"></i>
+              <span>Nearby Labs & Diagnostics</span>
+            </button>
+
             <button
               type="button"
               onClick={handleToggleWheelchairInActiveToken}
@@ -1534,7 +1565,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
             <button
               type="button"
               onClick={() => setShowNotificationModal(true)}
-              className="p-3.5 rounded-2xl border bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-700 text-xs font-bold flex items-center justify-center gap-2.5 transition cursor-pointer sm:col-span-2 md:col-span-1 shadow-2xs select-none active:scale-[0.98]"
+              className="p-3.5 rounded-2xl border bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-700 text-xs font-bold flex items-center justify-center gap-2.5 transition cursor-pointer shadow-2xs select-none active:scale-[0.98]"
             >
               <i className="fa-solid fa-bell text-amber-500 text-sm"></i>
               <span>OPD Announcements</span>
@@ -1861,6 +1892,30 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
         onSaveProfile={handleSaveProfile}
         onShowToast={notify}
       />
+
+      {/* BOOKING CONFIRMATION SCREEN / MODAL */}
+      {latestBookedPatient && (
+        <BookingConfirmationModal
+          isOpen={showBookingConfirmation}
+          onClose={() => setShowBookingConfirmation(false)}
+          onFindNearbyLabs={() => {
+            setShowBookingConfirmation(false);
+            setShowNearbyLabsModal(true);
+            playHospitalChime();
+          }}
+          patient={latestBookedPatient}
+        />
+      )}
+
+      {/* DEDICATED NEARBY LABS & DIAGNOSTIC CENTERS MODAL */}
+      {(currentPatient || latestBookedPatient) && (
+        <NearbyLabsModal
+          isOpen={showNearbyLabsModal}
+          onClose={() => setShowNearbyLabsModal(false)}
+          booking={currentPatient || latestBookedPatient!}
+          onShowToast={notify}
+        />
+      )}
     </div>
   );
 

@@ -1,3 +1,6 @@
+import { GeoPoint, InternalHospitalLab } from '../types';
+import { HOSPITAL_INTERNAL_LABS } from './labsData';
+
 export interface HospitalLocation {
   id: string;
   name: string;
@@ -9,6 +12,8 @@ export interface HospitalLocation {
   postalCode: string;
   lat: number;
   lng: number;
+  location?: GeoPoint;
+  internalLab?: InternalHospitalLab;
   phone: string;
   emergencyPhone: string;
   email: string;
@@ -36,6 +41,51 @@ export const PRIMARY_HOSPITAL_ID = 'hosp-max-mohali';
 
 export const REAL_HOSPITALS_NETWORK: HospitalLocation[] = [
   {
+    id: 'hosp-city-care',
+    name: 'City Care Hospital',
+    shortName: 'City Care Hospital',
+    tagline: 'Multi-Specialty OPD & Advanced Tertiary Care Institute',
+    address: 'SCF 14-16, Medical Enclave, Phase 7, Sector 61',
+    city: 'Mohali / Chandigarh Tri-City',
+    state: 'Punjab',
+    postalCode: '160061',
+    lat: 30.7165,
+    lng: 76.7245,
+    location: { type: 'Point', coordinates: [76.7245, 30.7165] },
+    internalLab: HOSPITAL_INTERNAL_LABS['hosp-city-care'],
+    phone: '+91 172 550 1100',
+    emergencyPhone: '+91 172 550 1111 (24/7 ER)',
+    email: 'contact@citycarehospital.org',
+    website: 'https://citycarehospital.org',
+    opdStatus: 'Normal Queue',
+    statusColor: 'emerald',
+    estimatedWaitMinutes: 12,
+    activeDoctorsCount: 38,
+    totalBeds: 210,
+    availableBeds: 42,
+    emergency24x7: true,
+    traumaLevel: '24/7 Level 1 Trauma Center & Acute Care Bay',
+    rating: 4.8,
+    reviewsCount: 3120,
+    departments: [
+      'General Medicine',
+      'Cardiology',
+      'Orthopedics & Joint Care',
+      'Pulmonology & Chest Medicine',
+      'Pediatrics',
+      'Obstetrics & Gynecology',
+      'Pathology & Diagnostic Medicine',
+    ],
+    facilities: [
+      '24/7 In-Hospital Pathology Lab',
+      'Diagnostic Imaging (CT, MRI, X-Ray, USG)',
+      'Digital Fast-Track Token Kiosk',
+      'Blood Bank & Transfusion Unit',
+      'Wheelchair Assistance Bay',
+    ],
+    opdTimings: '08:00 AM - 08:30 PM (Daily)',
+  },
+  {
     id: 'hosp-max-mohali',
     name: 'Max Super Specialty Hospital, Mohali',
     shortName: 'Max Super Specialty Mohali',
@@ -46,6 +96,8 @@ export const REAL_HOSPITALS_NETWORK: HospitalLocation[] = [
     postalCode: '160055',
     lat: 30.72484,
     lng: 76.72138,
+    location: { type: 'Point', coordinates: [76.72138, 30.72484] },
+    internalLab: HOSPITAL_INTERNAL_LABS['hosp-max-mohali'],
     phone: '+91 172 665 2000',
     emergencyPhone: '+91 172 665 2100 (24/7 ER)',
     email: 'mohali@maxhealthcare.com',
@@ -94,6 +146,8 @@ export const REAL_HOSPITALS_NETWORK: HospitalLocation[] = [
     postalCode: '160062',
     lat: 30.7022,
     lng: 76.7275,
+    location: { type: 'Point', coordinates: [76.7275, 30.7022] },
+    internalLab: HOSPITAL_INTERNAL_LABS['hosp-fortis-mohali'],
     phone: '+91 172 469 2222',
     emergencyPhone: '+91 172 1050 10',
     email: 'contactus.mohali@fortishealthcare.com',
@@ -129,6 +183,8 @@ export const REAL_HOSPITALS_NETWORK: HospitalLocation[] = [
     postalCode: '160012',
     lat: 30.7651,
     lng: 76.7766,
+    location: { type: 'Point', coordinates: [76.7766, 30.7651] },
+    internalLab: HOSPITAL_INTERNAL_LABS['hosp-pgimer-chandigarh'],
     phone: '+91 172 274 7585',
     emergencyPhone: '+91 172 275 6565',
     email: 'pgimer@chd.nic.in',
@@ -165,6 +221,8 @@ export const REAL_HOSPITALS_NETWORK: HospitalLocation[] = [
     postalCode: '160030',
     lat: 30.7107,
     lng: 76.7828,
+    location: { type: 'Point', coordinates: [76.7828, 30.7107] },
+    internalLab: HOSPITAL_INTERNAL_LABS['hosp-gmch-32'],
     phone: '+91 172 266 5253',
     emergencyPhone: '+91 172 266 5300',
     email: 'gmch_chd@gmch.gov.in',
@@ -201,6 +259,8 @@ export const REAL_HOSPITALS_NETWORK: HospitalLocation[] = [
     postalCode: '110017',
     lat: 28.5284,
     lng: 77.2127,
+    location: { type: 'Point', coordinates: [77.2127, 28.5284] },
+    internalLab: HOSPITAL_INTERNAL_LABS['hosp-max-saket-delhi'],
     phone: '+91 11 2651 5050',
     emergencyPhone: '+91 11 4055 4055',
     email: 'saket@maxhealthcare.com',
@@ -236,6 +296,8 @@ export const REAL_HOSPITALS_NETWORK: HospitalLocation[] = [
     postalCode: '110029',
     lat: 28.5672,
     lng: 77.2100,
+    location: { type: 'Point', coordinates: [77.2100, 28.5672] },
+    internalLab: HOSPITAL_INTERNAL_LABS['hosp-aiims-delhi'],
     phone: '+91 11 2658 8500',
     emergencyPhone: '+91 11 2658 8700 (ER 24/7)',
     email: 'admissions@mediqueue-aiims.org',

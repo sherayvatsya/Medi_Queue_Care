@@ -8,6 +8,7 @@ import {
   ALLOWED_MIME_TYPES,
   MAX_FILE_SIZE_BYTES,
 } from './services/medicalDocumentExtractor';
+import { getNearbyLabsService } from './services/labsService';
 
 export const apiRouter = express.Router();
 
@@ -517,4 +518,35 @@ apiRouter.post('/teleconsult/book', (req: Request, res: Response) => {
     return res.status(500).json({ success: false, error: error?.message });
   }
 });
+
+// ============================================================
+// NEARBY LABS & DIAGNOSTIC CENTERS ENDPOINT
+// ============================================================
+apiRouter.get('/labs/nearby', async (req: Request, res: Response) => {
+  try {
+    const { hospitalId, lat, lng, radius, category, openNow, sortBy } = req.query;
+
+    const result = await getNearbyLabsService({
+      hospitalId: typeof hospitalId === 'string' ? hospitalId : undefined,
+      lat: typeof lat === 'string' ? lat : undefined,
+      lng: typeof lng === 'string' ? lng : undefined,
+      radius: typeof radius === 'string' ? radius : undefined,
+      category: typeof category === 'string' ? category : undefined,
+      openNow: openNow === 'true' || openNow === '1',
+      sortBy: typeof sortBy === 'string' ? sortBy : undefined,
+    });
+
+    return res.json(result);
+  } catch (error: any) {
+    console.error('Nearby Labs API Error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error?.message || 'Failed to retrieve nearby laboratories and diagnostic centers.',
+      internalLab: null,
+      nearbyLabs: [],
+      totalLabsFound: 0,
+    });
+  }
+});
+
 

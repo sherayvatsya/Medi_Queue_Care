@@ -311,3 +311,101 @@ export interface WayfindingStep {
   distanceMeters: number;
   icon: string;
 }
+
+// ==========================================
+// NEARBY LABS & DIAGNOSTIC CENTERS TYPES
+// ==========================================
+
+export type LabCategory =
+  | 'pathology'
+  | 'blood_test'
+  | 'urine_test'
+  | 'radiology'
+  | 'xray'
+  | 'ultrasound'
+  | 'ct_scan'
+  | 'mri'
+  | 'health_packages';
+
+export interface GeoPoint {
+  type: 'Point';
+  coordinates: [number, number]; // [longitude, latitude] GeoJSON standard
+}
+
+export interface InternalHospitalLab {
+  id: string;
+  name: string;
+  hospitalId: string;
+  hospitalName: string;
+  isInternal: true;
+  locationDetails: string; // e.g. "Inside Hospital, Diagnostic Wing, Block C, Ground Floor"
+  floor: string;
+  block: string;
+  distanceMeters: 0;
+  distanceKm: 0;
+  operatingHours: string; // e.g. "24/7 (Emergency & Routine Diagnostics)"
+  phone: string;
+  rating: number;
+  reviewsCount: number;
+  services: string[]; // e.g. ["Pathology", "Blood Tests", "Urine Tests", "X-Ray", "Ultrasound", "CT Scan", "MRI"]
+  categories: LabCategory[];
+  accreditations: string[]; // e.g. ["NABL", "NABH", "CAP"]
+  sampleCounter: string;
+  description: string;
+  fastTrackAvailable: boolean;
+  popularTests?: { name: string; turnaroundHours: number; priceEstimate?: string }[];
+}
+
+export interface NearbyLab {
+  id: string;
+  name: string;
+  shortName?: string;
+  address: string;
+  city: string;
+  lat: number;
+  lng: number;
+  location?: GeoPoint;
+  distanceMeters: number;
+  distanceKm: number;
+  rating: number;
+  reviewsCount: number;
+  isOpen: boolean;
+  openingHours: string;
+  phone: string;
+  website?: string;
+  email?: string;
+  services: string[];
+  categories: LabCategory[];
+  isInternal?: false;
+  providerType: 'diagnostic_chain' | 'pathology_lab' | 'imaging_center' | 'blood_testing';
+  accreditations?: string[];
+  popularTests?: { name: string; turnaroundHours: number; priceEstimate?: string }[];
+}
+
+export interface NearbyLabsResponse {
+  success: boolean;
+  searchCenter: {
+    lat: number;
+    lng: number;
+    source: 'user' | 'hospital';
+    label: string;
+  };
+  searchRadiusMeters: number;
+  hospital: {
+    id: string;
+    name: string;
+    shortName: string;
+    address: string;
+    lat: number;
+    lng: number;
+    city: string;
+    location?: GeoPoint;
+  };
+  internalLab: InternalHospitalLab | null;
+  nearbyLabs: NearbyLab[];
+  totalLabsFound: number;
+  autoExpandedRadius?: boolean;
+  initialRadiusMeters?: number;
+  message?: string;
+}
+
