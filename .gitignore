@@ -26,3 +26,7 @@ credentials.json
 # Editor / OS junk
 .vscode/
 .idea/
+
+# Scratch & test scripts
+scratch/
+scratch_docs/
