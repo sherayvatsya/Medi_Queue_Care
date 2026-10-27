@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   LayoutDashboard,
-  Calendar,
   Ticket,
   Video,
   FlaskConical,
@@ -29,22 +28,26 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       {/* 1. Dashboard / Home */}
       <button
         type="button"
-        onClick={() => onNavigate('patient_pass')}
+        onClick={() => onNavigate('dashboard')}
         className={`flex flex-col items-center gap-0.5 text-[10px] font-semibold transition ${
-          currentView === 'patient_pass'
+          currentView === 'dashboard'
             ? 'text-[#087FC9] dark:text-[#38BDF8] font-bold'
             : 'text-[#64748B] dark:text-[#94A3B8]'
         }`}
       >
         <LayoutDashboard className="w-4 h-4" />
-        <span>Queue</span>
+        <span>Home</span>
       </button>
 
       {/* 2. Live Pass */}
       <button
         type="button"
         onClick={() => onNavigate('patient_pass')}
-        className="flex flex-col items-center gap-0.5 text-[10px] font-semibold text-[#087FC9] dark:text-[#38BDF8] relative -top-3"
+        className={`flex flex-col items-center gap-0.5 text-[10px] font-semibold relative -top-3 ${
+          currentView === 'patient_pass'
+            ? 'text-[#087FC9] dark:text-[#38BDF8] font-bold'
+            : 'text-[#087FC9] dark:text-[#38BDF8]'
+        }`}
       >
         <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-[#087FC9] to-[#00A3FF] text-white flex flex-col items-center justify-center shadow-md shadow-[#087FC9]/30">
           <Ticket className="w-4 h-4" />

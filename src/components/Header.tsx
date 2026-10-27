@@ -13,13 +13,11 @@ import {
   User,
   ShieldCheck,
   LogOut,
-  Sparkles,
-  Phone,
 } from 'lucide-react';
 import { PatientUser, StaffUser, UserRole, StaffSection } from '../types';
 import { useTheme } from '../context/ThemeContext';
 
-export type PatientNavView = 'patient_pass' | 'teleconsult' | 'hospital_map' | 'appointments' | 'medical_file';
+export type PatientNavView = 'dashboard' | 'patient_pass' | 'teleconsult' | 'hospital_map' | 'appointments' | 'medical_file';
 
 interface HeaderProps {
   currentRole: UserRole;
@@ -32,6 +30,7 @@ interface HeaderProps {
   activeStaffSection?: StaffSection;
   onStaffSectionChange?: (section: StaffSection) => void;
   onOpenPatientProfile?: () => void;
+  onOpenMedicalFile?: () => void;
   onOpenPatientAuth?: () => void;
   onOpenHospitalLogin?: () => void;
   onSignOut?: () => void;
@@ -48,6 +47,7 @@ export const Header: React.FC<HeaderProps> = ({
   activeStaffSection,
   onStaffSectionChange,
   onOpenPatientProfile,
+  onOpenMedicalFile,
   onOpenPatientAuth,
   onOpenHospitalLogin,
   onSignOut,
@@ -76,7 +76,7 @@ export const Header: React.FC<HeaderProps> = ({
   const userInitial = displayName.charAt(0).toUpperCase();
 
   const navItems = [
-    { id: 'patient_pass' as const, label: 'Patient Portal', icon: Activity },
+    { id: 'dashboard' as const, label: 'Patient Portal', icon: Activity },
     { id: 'hospital_map' as const, label: 'Find Hospital', icon: MapPin },
     { id: 'teleconsult' as const, label: 'Tele-Consult', icon: Video },
     { id: 'appointments' as const, label: 'My Appointments', icon: Calendar },
@@ -89,7 +89,7 @@ export const Header: React.FC<HeaderProps> = ({
         {/* LEFT: BRAND IDENTITY */}
         <div className="flex items-center gap-3 shrink-0">
           <div
-            onClick={() => onPatientNavChange('patient_pass')}
+            onClick={() => onPatientNavChange('dashboard')}
             className="flex items-center gap-2.5 cursor-pointer select-none group"
             title="Medi-Queue Home"
           >
@@ -129,19 +129,15 @@ export const Header: React.FC<HeaderProps> = ({
           <nav className="hidden lg:flex items-center gap-1.5 p-1 rounded-2xl bg-[#F6F9FC] dark:bg-[#172033] border border-[#E5EDF5] dark:border-[#1E293B]">
             {navItems.map((item) => {
               const Icon = item.icon;
-              const isActive =
-                patientNavView === item.id ||
-                (item.id === 'patient_pass' && patientNavView === 'patient_pass');
+              const isActive = patientNavView === item.id;
 
               return (
                 <button
                   key={item.id}
                   type="button"
                   onClick={() => {
-                    if (item.id === 'medical_file' && onOpenPatientProfile) {
-                      onOpenPatientProfile();
-                    } else if (item.id === 'appointments') {
-                      onPatientNavChange('patient_pass');
+                    if (item.id === 'medical_file' && onOpenMedicalFile) {
+                      onOpenMedicalFile();
                     } else {
                       onPatientNavChange(item.id);
                     }

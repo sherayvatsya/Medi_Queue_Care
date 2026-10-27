@@ -794,6 +794,18 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
                       </div>
                     </div>
 
+                    {onOpenHospitalStaffLogin && (
+                      <button
+                        type="button"
+                        onClick={onOpenHospitalStaffLogin}
+                        className="w-full min-h-11 px-4 rounded-xl border border-[#BAE6FD] dark:border-[#0B9FE3]/40 bg-[#F0F9FF] dark:bg-[#0B9FE3]/10 text-[#087FC9] dark:text-[#38BDF8] hover:bg-[#E0F2FE] dark:hover:bg-[#0B9FE3]/20 font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
+                      >
+                        <ShieldCheck className="w-4 h-4" />
+                        <span>Staff Portal Login</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+
                     {/* Security Footer Note (Section 21) */}
                     <div className="pt-2 text-center text-[11px] text-[#64748B] dark:text-[#94A3B8] flex items-center justify-center gap-1.5">
                       <Lock className="w-3.5 h-3.5 text-[#16B981]" />

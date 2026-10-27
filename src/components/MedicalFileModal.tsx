@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { jsPDF } from 'jspdf';
 import {
   X,
   FolderKanban,
@@ -8,20 +9,17 @@ import {
   Pill,
   BarChart3,
   Download,
-  Calendar,
-  User,
   ShieldCheck,
-  CheckCircle2,
-  FileCheck,
-  Plus,
 } from 'lucide-react';
 import { PatientUser } from '../types';
+
+type MedicalFileTab = 'overview' | 'history' | 'allergies' | 'medications' | 'prescriptions' | 'reports';
 
 interface MedicalFileModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentUser: PatientUser | null;
-  initialTab?: 'overview' | 'history' | 'allergies' | 'medications' | 'prescriptions' | 'reports';
+  initialTab?: MedicalFileTab;
   onShowToast?: (title: string, desc: string, type?: 'info' | 'success' | 'urgent') => void;
 }
 
@@ -32,9 +30,13 @@ export const MedicalFileModal: React.FC<MedicalFileModalProps> = ({
   initialTab = 'overview',
   onShowToast,
 }) => {
-  const [activeTab, setActiveTab] = useState<
-    'overview' | 'history' | 'allergies' | 'medications' | 'prescriptions' | 'reports'
-  >(initialTab);
+  const [activeTab, setActiveTab] = useState<MedicalFileTab>(initialTab);
+
+  useEffect(() => {
+    if (isOpen) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab, isOpen]);
 
   if (!isOpen) return null;
 
@@ -72,6 +74,132 @@ export const MedicalFileModal: React.FC<MedicalFileModalProps> = ({
     { id: 'reports' as const, label: 'Reports', icon: BarChart3 },
   ];
 
+  const tabMeta: Record<MedicalFileTab, { title: string; description: string; icon: typeof FolderKanban }> = {
+    overview: {
+      title: 'Patient Medical File',
+      description: 'Clinical summary, identifiers, chronic diagnoses, and safety flags.',
+      icon: FolderKanban,
+    },
+    history: {
+      title: 'Medical History',
+      description: 'Longitudinal conditions and documented care context.',
+      icon: Activity,
+    },
+    allergies: {
+      title: 'Allergy & Risk Flags',
+      description: 'High-priority allergy warnings for consultations and prescriptions.',
+      icon: AlertTriangle,
+    },
+    medications: {
+      title: 'Current Medications',
+      description: 'Active and as-needed medicines linked to this patient profile.',
+      icon: Pill,
+    },
+    prescriptions: {
+      title: 'Digital Prescriptions',
+      description: 'Doctor-issued prescriptions and diagnosis references.',
+      icon: FileText,
+    },
+    reports: {
+      title: 'Lab Reports',
+      description: 'Verified diagnostics with PDF export for each report.',
+      icon: BarChart3,
+    },
+  };
+  const activeTabMeta = tabMeta[activeTab];
+
+  const ActiveHeaderIcon = activeTabMeta.icon;
+
+  const exportReportPDF = (report?: (typeof labReports)[number]) => {
+    try {
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+      });
+
+      const reportsToExport = report ? [report] : labReports;
+      const generatedAt = new Date().toLocaleString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      });
+
+      doc.setFillColor(8, 127, 201);
+      doc.rect(0, 0, 210, 28, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.text(report ? 'Medical Report PDF' : 'Medical Reports Bundle', 14, 11);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.text('Medi Queue Verified Diagnostic Record', 14, 17);
+      doc.text(`Generated: ${generatedAt}`, 196, 11, { align: 'right' });
+      doc.text(`UHID: ${patientUhid}`, 196, 17, { align: 'right' });
+
+      doc.setTextColor(15, 23, 42);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.text('Patient Details', 14, 40);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.text(`Name: ${patientName}`, 14, 47);
+      doc.text(`Age / Gender: ${age} yrs / ${gender}`, 14, 53);
+      doc.text(`Blood Group: ${bloodGroup}`, 14, 59);
+
+      let y = 72;
+      reportsToExport.forEach((item, index) => {
+        if (y > 245) {
+          doc.addPage();
+          y = 24;
+        }
+
+        doc.setFillColor(248, 250, 252);
+        doc.setDrawColor(226, 232, 240);
+        doc.roundedRect(14, y, 182, 36, 2, 2, 'FD');
+
+        doc.setTextColor(8, 127, 201);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.text(`${index + 1}. ${item.title}`, 20, y + 8);
+
+        doc.setTextColor(71, 85, 105);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
+        doc.text(`Date: ${item.date}`, 20, y + 15);
+        doc.text(`Lab: ${item.lab}`, 20, y + 21);
+        doc.text(`Status: ${item.status}`, 158, y + 15);
+
+        const resultLines = doc.splitTextToSize(`Result: ${item.result}`, 166);
+        doc.text(resultLines, 20, y + 28);
+
+        y += 45;
+      });
+
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text('This PDF is generated from the patient medical file for personal healthcare use.', 105, 287, { align: 'center' });
+
+      const safeName = patientName.replace(/[^a-zA-Z0-9]/g, '_');
+      const safeReport = report ? report.title.replace(/[^a-zA-Z0-9]/g, '_') : 'All_Reports';
+      const fileName = `MediQueue_Report_${safeReport}_${safeName}.pdf`;
+      doc.save(fileName);
+
+      onShowToast?.(
+        'Report PDF Saved',
+        `${report ? report.title : 'All reports'} saved as ${fileName}.`,
+        'success'
+      );
+    } catch (error) {
+      console.error('Failed to export report PDF:', error);
+      onShowToast?.('PDF Export Failed', 'Unable to save the report PDF. Please try again.', 'urgent');
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="bg-white dark:bg-[#111827] rounded-3xl border border-[#E5EDF5] dark:border-[#1E293B] max-w-3xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden text-left">
@@ -79,12 +207,12 @@ export const MedicalFileModal: React.FC<MedicalFileModalProps> = ({
         <div className="p-4 sm:p-6 border-b border-[#E5EDF5] dark:border-[#1E293B] flex items-center justify-between bg-[#F6F9FC] dark:bg-[#172033]">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#087FC9] to-[#38BDF8] text-white flex items-center justify-center shadow-md">
-              <FolderKanban className="w-5 h-5" />
+              <ActiveHeaderIcon className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-heading font-extrabold text-base sm:text-lg text-[#13213A] dark:text-white">
-                  Patient Medical File
+                  {activeTabMeta.title}
                 </h3>
                 <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-[#EBF5FB] text-[#087FC9] border border-[#BAE6FD]">
                   {patientUhid}
@@ -263,6 +391,17 @@ export const MedicalFileModal: React.FC<MedicalFileModalProps> = ({
           {/* TAB 5: PRESCRIPTIONS */}
           {activeTab === 'prescriptions' && (
             <div className="space-y-3 animate-in fade-in duration-150">
+              <div className="p-4 rounded-2xl border border-[#BAE6FD] bg-[#EBF5FB] dark:bg-[#082F49] dark:border-[#0284C7] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h4 className="text-sm font-heading font-extrabold text-[#13213A] dark:text-white">Prescription Library</h4>
+                  <p className="text-xs text-[#64748B] dark:text-[#94A3B8] mt-0.5">
+                    Doctor-authored prescriptions with diagnosis context and downloadable records.
+                  </p>
+                </div>
+                <span className="text-[10px] font-bold uppercase px-2.5 py-1 rounded-full bg-white dark:bg-[#111827] text-[#087FC9] border border-[#BAE6FD] self-start sm:self-auto">
+                  {prescriptions.length} Rx
+                </span>
+              </div>
               {prescriptions.map((rx) => (
                 <div
                   key={rx.id}
@@ -299,6 +438,22 @@ export const MedicalFileModal: React.FC<MedicalFileModalProps> = ({
           {/* TAB 6: REPORTS */}
           {activeTab === 'reports' && (
             <div className="space-y-3 animate-in fade-in duration-150">
+              <div className="p-4 rounded-2xl border border-purple-200 dark:border-purple-900 bg-purple-50/70 dark:bg-purple-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h4 className="text-sm font-heading font-extrabold text-[#13213A] dark:text-white">Diagnostic Reports</h4>
+                  <p className="text-xs text-[#64748B] dark:text-[#94A3B8] mt-0.5">
+                    Verified lab and imaging reports. Save one report or export the complete report bundle as PDF.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => exportReportPDF()}
+                  className="px-3 py-2 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer shadow-md shadow-purple-500/20 self-start sm:self-auto"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Save All PDF</span>
+                </button>
+              </div>
               {labReports.map((rep, i) => (
                 <div
                   key={i}
@@ -318,9 +473,19 @@ export const MedicalFileModal: React.FC<MedicalFileModalProps> = ({
                       </p>
                     </div>
                   </div>
-                  <span className="self-end sm:self-auto text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
-                    {rep.status}
-                  </span>
+                  <div className="self-end sm:self-auto flex items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                      {rep.status}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => exportReportPDF(rep)}
+                      className="px-3 py-1.5 rounded-xl border border-purple-300 text-purple-700 hover:bg-purple-600 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>PDF</span>
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

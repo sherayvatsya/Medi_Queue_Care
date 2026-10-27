@@ -10,10 +10,7 @@ import {
   FlaskConical,
   Settings,
   HelpCircle,
-  PhoneCall,
-  Sparkles,
 } from 'lucide-react';
-import { PatientNavView } from './Header';
 
 export type SidebarTab =
   | 'dashboard'
