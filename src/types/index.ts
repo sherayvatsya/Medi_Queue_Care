@@ -1,6 +1,6 @@
 export type PatientType = 'new' | 'followup';
 
-export type UserRole = 'patient' | 'staff';
+export type UserRole = 'patient' | 'staff' | 'doctor' | 'admin';
 
 export type StaffSection =
   | 'staff_dashboard'
@@ -8,7 +8,9 @@ export type StaffSection =
   | 'doctor_availability'
   | 'patient_management'
   | 'reports'
-  | 'hospital_profile';
+  | 'hospital_profile'
+  | 'doctor_dashboard'
+  | 'overcrowding_predictor';
 
 export interface StaffUser {
   id: string;
@@ -255,6 +257,14 @@ export interface Patient {
   auditHistory?: RescheduleAudit[];
   wheelchairRequest?: WheelchairRequest;
   teleconsult?: TeleconsultBooking;
+  prescriptionHistory?: DoctorPrescription[];
+  consultationHistory?: DoctorConsultation[];
+  currentPrescription?: DoctorPrescription;
+  duration?: string;
+  notes?: string;
+  urgent?: boolean;
+  intakeSource?: 'voice' | 'typed' | 'document';
+  consentGiven?: boolean;
 }
 
 export interface Doctor {
@@ -409,3 +419,94 @@ export interface NearbyLabsResponse {
   message?: string;
 }
 
+
+
+// ==========================================
+// DOCTOR DASHBOARD & PRESCRIPTION TYPES
+// ==========================================
+
+export interface PrescriptionMedicine {
+  id: string;
+  name: string;
+  dosage: string;
+  frequency: string;
+  duration: string;
+  instructions: string;
+}
+
+export interface DoctorPrescription {
+  id: string;
+  prescriptionNumber: string;
+  patientId: string;
+  patientUhid: string;
+  patientName: string;
+  patientAge: number;
+  patientGender: 'Male' | 'Female' | 'Other';
+  doctorId: string;
+  doctorName: string;
+  doctorSpecialty: string;
+  doctorDepartment: string;
+  doctorRoom: string;
+  tokenNumber: string;
+  diagnosis: string;
+  doctorNotes?: string;
+  medicines: PrescriptionMedicine[];
+  followUpDate?: string;
+  dietaryAdvice?: string;
+  investigationsRecommended?: string[];
+  prescribedAt: string;
+  status: 'active' | 'completed' | 'cancelled';
+  isConfirmedByDoctor: boolean;
+  signature?: string;
+}
+
+export interface DoctorConsultation {
+  id: string;
+  tokenNumber: string;
+  patientId: string;
+  patientUhid: string;
+  patientName: string;
+  patientAge?: number;
+  patientGender?: string;
+  doctorId: string;
+  doctorName: string;
+  doctorDepartment: string;
+  startedAt: string;
+  completedAt: string;
+  durationMinutes: number;
+  diagnosis: string;
+  clinicalNotes: string;
+  prescriptionId?: string;
+  prescription?: DoctorPrescription;
+  status: 'completed' | 'cancelled' | 'in_consultation';
+  vitals?: {
+    bp?: string;
+    pulse?: string;
+    temp?: string;
+    spo2?: string;
+    weight?: string;
+  };
+}
+
+export interface PatientMedicalHistoryData {
+  patientId: string;
+  uhid: string;
+  name: string;
+  age: number;
+  gender: string;
+  bloodGroup: string;
+  allergies: string[];
+  chronicConditions: string[];
+  currentMedications: Array<{ name: string; dose: string; doctor?: string; status?: string }>;
+  previousConsultations: DoctorConsultation[];
+  prescriptions: DoctorPrescription[];
+  labReports: Array<{
+    id: string;
+    title: string;
+    date: string;
+    lab: string;
+    status: string;
+    result: string;
+  }>;
+  extractedDocumentSummary?: string;
+}

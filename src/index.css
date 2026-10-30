@@ -36,13 +36,13 @@
 }
 
 .dark, html.dark, body.dark {
-  --bg: #0B1220;
-  --card: #111827;
-  --border: #1E293B;
+  --bg: #000000;
+  --card: #0A0A0A;
+  --border: #222222;
   --text: #F1F5F9;
   --text-navy: #FFFFFF;
   --text-muted: #94A3B8;
-  --lab-purple-bg: #2E1065;
+  --lab-purple-bg: #1A0B2E;
   color-scheme: dark;
 }
 
@@ -82,22 +82,59 @@ h1, h2, h3, h4, .font-heading {
   color-scheme: dark;
 }
 
+.dark,
+.dark body,
+.dark #root {
+  background-color: #000000 !important;
+}
+
 .dark .bg-white {
-  background-color: #111827;
+  background-color: #0A0A0A !important;
 }
 
 .dark .bg-slate-50 {
-  background-color: #172033;
+  background-color: #101010 !important;
 }
 
 .dark .bg-slate-100 {
-  background-color: #1e293b;
+  background-color: #181818 !important;
+}
+
+.dark .bg-slate-800 {
+  background-color: #121212 !important;
+}
+
+.dark .bg-slate-900 {
+  background-color: #0A0A0A !important;
 }
 
 .dark .border-slate-100,
 .dark .border-slate-200,
-.dark .border-slate-300 {
-  border-color: #1e293b;
+.dark .border-slate-300,
+.dark .border-slate-700,
+.dark .border-slate-800 {
+  border-color: #222222 !important;
+}
+
+/* Override all dark blue utility classes to true black */
+.dark [class*="bg-[#0B1220]"],
+.dark [class*="bg-[#111827]"],
+.dark [class*="bg-[#172033]"],
+.dark [class*="bg-[#14213D]"],
+.dark [class*="bg-[#13213A]"] {
+  background-color: #000000 !important;
+}
+
+.dark [class*="border-[#1E293B]"] {
+  border-color: #222222 !important;
+}
+
+.dark header {
+  background-color: rgba(0, 0, 0, 0.95) !important;
+}
+
+.dark aside {
+  background-color: rgba(10, 10, 10, 0.95) !important;
 }
 
 .dark .text-slate-900,
@@ -400,6 +437,58 @@ h1, h2, h3, h4, .font-heading {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+/* ============================================================
+   TRUE BLACK DARK THEME OVERRIDES (Instead of Dark Blue)
+   ============================================================ */
+.dark, html.dark, body.dark {
+  background-color: #000000 !important;
+  color: #F3F4F6 !important;
+}
+
+.dark [class*="bg-[#0B1220]"],
+.dark [class*="dark:bg-[#0B1220]"],
+.dark [class*="bg-[#0b1220]"],
+.dark [class*="dark:bg-[#0b1220]"],
+.dark [class*="bg-[#0f172a]"],
+.dark [class*="dark:bg-[#0f172a]"],
+.dark [class*="dark:bg-slate-950"],
+.dark [class*="dark:bg-gray-950"] {
+  background-color: #000000 !important;
+}
+
+.dark [class*="bg-[#111827]"],
+.dark [class*="dark:bg-[#111827]"],
+.dark [class*="dark:bg-slate-900"],
+.dark [class*="dark:bg-gray-900"] {
+  background-color: #0a0a0c !important;
+}
+
+.dark [class*="bg-[#172033]"],
+.dark [class*="dark:bg-[#172033]"],
+.dark [class*="dark:bg-slate-850"],
+.dark [class*="dark:bg-slate-800"],
+.dark [class*="dark:bg-gray-800"] {
+  background-color: #121216 !important;
+}
+
+.dark [class*="border-[#1E293B]"],
+.dark [class*="dark:border-[#1E293B]"],
+.dark [class*="dark:border-slate-800"],
+.dark [class*="dark:border-gray-800"] {
+  border-color: #26262a !important;
+}
+
+.dark .card-healthcare {
+  background-color: #0a0a0c !important;
+  border-color: #26262a !important;
+}
+
+.dark header,
+.dark nav,
+.dark aside {
+  border-color: #26262a !important;
 }
 
 /* Print Stylesheet for Clean Hospital Slip / Token Pass */

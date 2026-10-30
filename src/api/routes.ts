@@ -1,3 +1,10 @@
+import {
+  callNextPatientAtomicService,
+  savePrescriptionService,
+  finishConsultationService,
+  getPatientMedicalHistoryService,
+  getDoctorCompletedConsultationsService,
+} from './services/mongoService.ts';
 import 'dotenv/config';
 import { GoogleGenAI } from '@google/genai';
 import express, { type Request, type Response } from 'express';
@@ -9,6 +16,7 @@ import {
   MAX_FILE_SIZE_BYTES,
 } from './services/medicalDocumentExtractor';
 import { getNearbyLabsService } from './services/labsService';
+import { structureSpokenTranscript, transcribeAndStructureAudio, detectUrgency, URGENT_KEYWORDS } from './services/intakeService';
 
 export const apiRouter = express.Router();
 
@@ -550,3 +558,189 @@ apiRouter.get('/labs/nearby', async (req: Request, res: Response) => {
 });
 
 
+
+
+// ============================================================
+// VOICE-FIRST OPD INTAKE ENDPOINT (GEMINI LLM POWERED)
+// ============================================================
+apiRouter.post('/intake/structure', async (req: Request, res: Response) => {
+  try {
+    const { transcript } = req.body;
+
+    // Validate input: transcript must be a non-empty string, max 2000 chars
+    if (!transcript || typeof transcript !== 'string' || transcript.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'transcript_required',
+        message: 'A non-empty spoken transcript string is required.',
+      });
+    }
+
+    if (transcript.length > 2000) {
+      return res.status(400).json({
+        success: false,
+        error: 'transcript_too_long',
+        message: 'Spoken transcript exceeds 2,000 characters limit.',
+      });
+    }
+
+    const result = await structureSpokenTranscript(transcript.trim());
+
+    if (!result.success || !result.data) {
+      return res.status(result.status || 502).json({
+        success: false,
+        error: result.error || 'parse_failed',
+      });
+    }
+
+    // Return structured fields and urgency. Note: strictly NO database save here!
+    return res.json({
+      success: true,
+      ...result.data,
+    });
+  } catch (error: any) {
+    console.error('Intake structure error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error?.message || 'internal_error',
+    });
+  }
+});
+
+// Endpoint: Direct Audio Upload & Gemini Transcription (Fallback for browser speech service network errors)
+apiRouter.post(
+  '/intake/transcribe-audio',
+  upload.single('audio'),
+  async (req: Request, res: Response) => {
+    try {
+      if (!req.file || !req.file.buffer) {
+        return res.status(400).json({
+          success: false,
+          error: 'no_audio_file',
+          message: 'No recorded audio received.',
+        });
+      }
+
+      const language = (req.body.language as string) || 'hi-IN';
+      const result = await transcribeAndStructureAudio(
+        req.file.buffer,
+        req.file.mimetype || 'audio/webm',
+        language
+      );
+
+      if (!result.success || !result.data) {
+        return res.status(502).json({
+          success: false,
+          error: result.error || 'transcription_failed',
+        });
+      }
+
+      return res.json({
+        success: true,
+        ...result.data,
+      });
+    } catch (error: any) {
+      console.error('Audio transcribe error:', error);
+      return res.status(500).json({
+        success: false,
+        error: error?.message || 'audio_processing_failed',
+      });
+    }
+  }
+);
+
+// ============================================================
+// DOCTOR DASHBOARD & CLINICAL QUEUE MODULE (MongoDB Powered)
+// ============================================================
+
+// Doctor security guard middleware
+const requireDoctorOrStaffAuth = (req: Request, res: Response, next: express.NextFunction) => {
+  const staffRole = (req.headers['x-staff-role'] as string) || '';
+
+  // Protect clinical endpoints: If caller specifies an unauthorized role, block them
+  if (staffRole && !['doctor', 'staff', 'admin'].includes(staffRole.toLowerCase())) {
+    return res.status(403).json({
+      success: false,
+      error: 'Clinical Security Restriction: Doctor or authorized hospital staff credentials strictly required.',
+    });
+  }
+
+  next();
+};
+
+// 1. Get Doctor's Completed Consultations
+apiRouter.get('/doctor/consultations', requireDoctorOrStaffAuth, async (req: Request, res: Response) => {
+  try {
+    const doctorId = (req.query.doctorId as string) || 'doc-1';
+    const consultations = await getDoctorCompletedConsultationsService(doctorId);
+    return res.json({ success: true, consultations });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err?.message || 'Failed to fetch doctor consultations.' });
+  }
+});
+
+// 2. Call Next Patient Atomic
+apiRouter.post('/doctor/call-next', requireDoctorOrStaffAuth, async (req: Request, res: Response) => {
+  try {
+    const { doctorId, patients = [], doctors = [] } = req.body;
+    if (!doctorId) {
+      return res.status(400).json({ success: false, error: 'Doctor ID is required to call next patient.' });
+    }
+
+    const result = await callNextPatientAtomicService(doctorId, patients, doctors);
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err?.message || 'Failed to call next patient.' });
+  }
+});
+
+// 3. Save Prescription
+apiRouter.post('/doctor/prescription', requireDoctorOrStaffAuth, async (req: Request, res: Response) => {
+  try {
+    const result = await savePrescriptionService(req.body);
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err?.message || 'Failed to save prescription.' });
+  }
+});
+
+// 4. Finish Consultation
+apiRouter.post('/doctor/finish-consultation', requireDoctorOrStaffAuth, async (req: Request, res: Response) => {
+  try {
+    const result = await finishConsultationService(req.body);
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err?.message || 'Failed to finish consultation.' });
+  }
+});
+
+// 5. Patient Medical History
+apiRouter.get('/doctor/patient-history/:patientId', requireDoctorOrStaffAuth, async (req: Request, res: Response) => {
+  try {
+    const patientId = req.params.patientId;
+    if (!patientId) {
+      return res.status(400).json({ success: false, error: 'Patient ID is required.' });
+    }
+    const history = await getPatientMedicalHistoryService(patientId);
+    return res.json({ success: true, history });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err?.message || 'Failed to fetch patient history.' });
+  }
+});
+
+// 6. Get Prescriptions for Patient
+apiRouter.get('/doctor/prescriptions/:patientId', requireDoctorOrStaffAuth, async (req: Request, res: Response) => {
+  try {
+    const patientId = req.params.patientId;
+    const history = await getPatientMedicalHistoryService(patientId);
+    return res.json({ success: true, prescriptions: history.prescriptions || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err?.message || 'Failed to fetch prescriptions.' });
+  }
+});

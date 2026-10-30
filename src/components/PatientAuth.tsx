@@ -10,6 +10,8 @@ import { signInWithGoogle, saveUserProfileToFirestore } from '../firebase';
 import confetti from 'canvas-confetti';
 import hospitalQueueBg from '../../assets/hospital-queue-bg.png';
 import { SmartDocumentUpload } from './SmartDocumentUpload';
+import { VoiceIntake } from './VoiceIntake';
+import { INITIAL_DOCTORS } from '../data/mockData';
 import { ExtractedFieldIndicator } from './ExtractedFieldIndicator';
 import {
   ShieldCheck,
@@ -27,6 +29,8 @@ import {
   Eye,
   EyeOff,
   HeartPulse,
+  Mic,
+  Stethoscope,
 } from 'lucide-react';
 
 interface PatientAuthProps {
@@ -46,7 +50,7 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
   onOpenSupportModal,
   onOpenHospitalStaffLogin,
 }) => {
-  const [authMode, setAuthMode] = useState<'signin' | 'signup' | 'otp_verify'>('signin');
+  const [authMode, setAuthMode] = useState<'signin' | 'signup' | 'otp_verify' | 'voice'>('signin');
   const [loginIdentifier, setLoginIdentifier] = useState<string>('SJMC-2026-DEL-08942A');
   const [loginPin, setLoginPin] = useState<string>('1234');
   const [showPin, setShowPin] = useState<boolean>(false);
@@ -522,21 +526,21 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
           <div className="patient-auth-card w-full sm:w-[min(92vw,620px)] md:w-[58vw] lg:w-[44vw] xl:w-[42vw] max-w-[660px] max-h-[calc(100vh-7.25rem)] bg-white/94 backdrop-blur-xl rounded-[24px] border border-white/70 shadow-[0_28px_80px_rgba(3,24,50,0.34)] overflow-y-auto transition-all duration-300">
             
             {/* CARD TOP TABS (Section 13) */}
-            <div className="auth-tabs grid grid-cols-2 border-b border-[#DCE8F2] dark:border-[#1E293B] bg-[#F8FAFC] dark:bg-[#0E1726]">
+            <div className="auth-tabs grid grid-cols-3 border-b border-[#DCE8F2] dark:border-[#1E293B] bg-[#F8FAFC] dark:bg-[#0E1726]">
               <button
                 type="button"
                 onClick={() => {
                   setAuthMode('signin');
                   setErrorMessage('');
                 }}
-                className={`py-4 px-4 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer relative ${
+                className={`py-3 px-2 sm:px-3 text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer relative ${
                   authMode === 'signin' || authMode === 'otp_verify'
                     ? 'bg-white dark:bg-[#111827] text-[#0B9FE3] dark:text-[#38BDF8] shadow-2xs font-extrabold'
                     : 'text-[#64748B] dark:text-[#94A3B8] hover:text-[#10244A] dark:hover:text-white hover:bg-white/50'
                 }`}
               >
-                <ArrowRight className="w-4 h-4 text-[#0B9FE3]" />
-                <span>Sign In (Existing UHID)</span>
+                <ArrowRight className="w-3.5 h-3.5 text-[#0B9FE3]" />
+                <span className="truncate">Sign In</span>
                 {(authMode === 'signin' || authMode === 'otp_verify') && (
                   <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#0B9FE3]"></div>
                 )}
@@ -548,21 +552,72 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
                   setAuthMode('signup');
                   setErrorMessage('');
                 }}
-                className={`py-4 px-4 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer relative ${
+                className={`py-3 px-2 sm:px-3 text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer relative ${
                   authMode === 'signup'
                     ? 'bg-white dark:bg-[#111827] text-[#0B9FE3] dark:text-[#38BDF8] shadow-2xs font-extrabold'
                     : 'text-[#64748B] dark:text-[#94A3B8] hover:text-[#10244A] dark:hover:text-white hover:bg-white/50'
                 }`}
               >
-                <UserCheck className="w-4 h-4 text-[#0B9FE3]" />
-                <span>Create Account (New Patient)</span>
+                <UserCheck className="w-3.5 h-3.5 text-[#0B9FE3]" />
+                <span className="truncate">New Account</span>
                 {authMode === 'signup' && (
                   <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#0B9FE3]"></div>
                 )}
               </button>
-            </div>
 
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode('voice');
+                  setErrorMessage('');
+                }}
+                className={`py-3 px-2 sm:px-3 text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer relative ${
+                  authMode === 'voice'
+                    ? 'bg-white dark:bg-[#111827] text-[#087FC9] dark:text-[#38BDF8] shadow-2xs font-extrabold'
+                    : 'text-[#64748B] dark:text-[#94A3B8] hover:text-[#10244A] dark:hover:text-white hover:bg-white/50'
+                }`}
+              >
+                <Mic className="w-3.5 h-3.5 text-[#087FC9]" />
+                <span className="truncate font-extrabold">🎙️ Voice OPD</span>
+                {authMode === 'voice' && (
+                  <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#087FC9]"></div>
+                )}
+              </button>
+            </div>
             {/* CARD BODY CONTENT */}
+            {/* VOICE OPD REGISTRATION VIEW */}
+            {authMode === 'voice' && (
+              <div className="p-4 sm:p-6 space-y-4">
+                <VoiceIntake
+                  doctors={INITIAL_DOCTORS}
+                  currentUser={null}
+                  onGenerateToken={(patient) => {
+                    const newUserObj: PatientUser = {
+                      id: patient.userId || `user-${Date.now()}`,
+                      uhid: patient.uhid,
+                      name: patient.name,
+                      phone: patient.phone,
+                      email: `${patient.name.toLowerCase().replace(/\s+/g, '')}@patient.org`,
+                      age: patient.age,
+                      gender: patient.gender,
+                      bloodGroup: 'B+',
+                      emergencyContactName: 'Next of Kin',
+                      emergencyContactPhone: patient.phone,
+                      allergies: [],
+                      chronicConditions: [],
+                      registeredAt: new Date().toISOString().split('T')[0],
+                    };
+                    saveUserProfileToFirestore(newUserObj);
+                    notify('Token Generated', `Token #${patient.tokenNumber} issued successfully!`, 'success');
+                    onLoginSuccess(newUserObj);
+                  }}
+                  onFallbackToTyped={() => setAuthMode('signup')}
+                  onShowToast={notify}
+                />
+              </div>
+            )}
+
+            {authMode !== 'voice' && (
             <div className="p-6 sm:p-8 lg:p-9 space-y-6">
               
               {/* Heading Section (Section 12 & Section 22) */}
@@ -1197,6 +1252,7 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
               )}
 
             </div>
+            )}
 
             {/* Emergency Bypass Option (Preserved) */}
             {onEmergencyBypass && (

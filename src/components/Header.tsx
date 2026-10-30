@@ -13,6 +13,7 @@ import {
   User,
   ShieldCheck,
   LogOut,
+  Stethoscope,
 } from 'lucide-react';
 import { PatientUser, StaffUser, UserRole, StaffSection } from '../types';
 import { useTheme } from '../context/ThemeContext';
@@ -33,6 +34,8 @@ interface HeaderProps {
   onOpenMedicalFile?: () => void;
   onOpenPatientAuth?: () => void;
   onOpenHospitalLogin?: () => void;
+  onOpenDoctorLogin?: () => void;
+  onOpenAdminLogin?: () => void;
   onSignOut?: () => void;
 }
 
@@ -50,6 +53,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenMedicalFile,
   onOpenPatientAuth,
   onOpenHospitalLogin,
+  onOpenDoctorLogin,
+  onOpenAdminLogin,
   onSignOut,
 }) => {
   const { theme, toggleTheme } = useTheme();
@@ -71,7 +76,7 @@ export const Header: React.FC<HeaderProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const isStaff = currentRole === 'staff' && staffUser !== null;
+  const isStaff = (currentRole === 'staff' || currentRole === 'admin' || currentRole === 'doctor') && staffUser !== null;
   const displayName = isStaff ? staffUser?.name : (currentUser ? currentUser.name : 'Rajesh');
   const userInitial = displayName.charAt(0).toUpperCase();
 
@@ -113,7 +118,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </span>
                 {isStaff && (
                   <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#EBF5FB] dark:bg-[#082F49] text-[#087FC9] dark:text-[#38BDF8] border border-[#BAE6FD]">
-                    Staff Portal
+                    {currentRole === 'doctor' ? 'Doctor Portal' : 'Admin Portal'}
                   </span>
                 )}
               </div>
@@ -168,6 +173,48 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
               Live Clinical Console
             </span>
+            {onStaffSectionChange && (
+              <button
+                type="button"
+                onClick={() => onStaffSectionChange('doctor_dashboard')}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  activeStaffSection === 'doctor_dashboard'
+                    ? 'bg-sky-500 text-white shadow-xs'
+                    : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200'
+                }`}
+              >
+                <Stethoscope className="w-3.5 h-3.5" />
+                <span>Doctor Console</span>
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* DIRECT ACCESS: Doctor & Admin Portal Buttons */}
+        {!isStaff && (
+          <div className="hidden sm:flex items-center gap-2" data-portal-buttons="true">
+            <button
+              type="button"
+              onClick={() => {
+                if (onOpenDoctorLogin) onOpenDoctorLogin();
+                else window.location.hash = '#doctor-login';
+              }}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/60 dark:hover:bg-teal-900/60 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+            >
+              <Stethoscope className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+              <span>Doctor Login</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (onOpenAdminLogin) onOpenAdminLogin();
+                else window.location.hash = '#admin-login';
+              }}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+              <span>Admin Login</span>
+            </button>
           </div>
         )}
 
@@ -281,7 +328,33 @@ export const Header: React.FC<HeaderProps> = ({
                       <span>Edit Patient Profile</span>
                     </button>
                   )}
-                  {onOpenHospitalLogin && !isStaff && (
+                  {onOpenDoctorLogin && !isStaff && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowProfileDropdown(false);
+                        onOpenDoctorLogin();
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-teal-700 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/40 rounded-xl cursor-pointer font-semibold"
+                    >
+                      <Stethoscope className="w-3.5 h-3.5 text-teal-600" />
+                      <span>Doctor Clinical Login</span>
+                    </button>
+                  )}
+                  {onOpenAdminLogin && !isStaff && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowProfileDropdown(false);
+                        onOpenAdminLogin();
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-indigo-700 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-xl cursor-pointer font-semibold"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Hospital Admin Login</span>
+                    </button>
+                  )}
+                  {onOpenHospitalLogin && !onOpenDoctorLogin && !isStaff && (
                     <button
                       type="button"
                       onClick={() => {
@@ -292,6 +365,19 @@ export const Header: React.FC<HeaderProps> = ({
                     >
                       <ShieldCheck className="w-3.5 h-3.5 text-sky-500" />
                       <span>Hospital Staff Portal</span>
+                    </button>
+                  )}
+                  {isStaff && onStaffSectionChange && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowProfileDropdown(false);
+                        onStaffSectionChange('doctor_dashboard');
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#334155] dark:text-[#94A3B8] hover:bg-[#F6F9FC] dark:hover:bg-[#172033] hover:text-[#087FC9] rounded-xl cursor-pointer font-bold"
+                    >
+                      <Stethoscope className="w-3.5 h-3.5 text-sky-500" />
+                      <span>Doctor Clinical Console</span>
                     </button>
                   )}
                   {onSignOut && (

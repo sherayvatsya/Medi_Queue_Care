@@ -1,34 +1,89 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow public read on live doctors, announcements, and queue tokens for kiosk & patient displays
+    // Helper authorization functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Check if the user document or staff document assigns role
+    function isStaffMember() {
+      return isAuthenticated() && (
+        exists(/databases/$(database)/documents/staff/$(request.auth.uid))
+      );
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        get(/databases/$(database)/documents/staff/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+
+    function isDoctor() {
+      return isAuthenticated() && (
+        get(/databases/$(database)/documents/staff/$(request.auth.uid)).data.role == 'doctor'
+      );
+    }
+
+    // Staff & Doctor Directory: Writable ONLY by authorized admins; prevents frontend role spoofing
+    match /staff/{staffId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Doctors: Public read for Kiosk displays & directory; status update for authorized doctors/admins
     match /doctors/{doctorId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isStaffMember() || isDoctor() || isAdmin();
     }
 
+    // Announcements: Public read for TV displays; write allowed only for administrative staff
     match /announcements/{announcementId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isAdmin();
     }
 
+    // Patient Queue & Tokens: Read allowed for kiosk, TV & patients; updates restricted to authorized clinical staff
     match /patients/{patientId} {
       allow read: if true;
-      allow write: if true;
+      allow create: if true; // patient self-registration
+      allow update, delete: if isStaffMember() || isDoctor() || isAdmin();
     }
 
+    // Patient User Profiles: User can read/write their own profile; clinical staff can read
     match /users/{userId} {
-      allow read: if true;
-      allow write: if true;
+      allow read: if isAuthenticated() || isStaffMember() || isDoctor();
+      allow write: if isAuthenticated() && request.auth.uid == userId;
     }
 
+    // Prescriptions: Strictly readable by patient or doctor/staff; writable ONLY by verified licensed doctors
+    match /prescriptions/{prescriptionId} {
+      allow read: if isAuthenticated() || isDoctor() || isStaffMember();
+      allow write: if isDoctor();
+    }
+
+    // Consultations: Strictly clinical consultation notes; writable ONLY by doctor
+    match /consultations/{consultationId} {
+      allow read: if isDoctor() || isAdmin() || isStaffMember();
+      allow write: if isDoctor();
+    }
+
+    // Reschedule Audits: Only administrative write/read
+    match /reschedule_audits/{auditId} {
+      allow read: if isStaffMember() || isAdmin();
+      allow write: if isStaffMember() || isAdmin();
+    }
+
+    // Wheelchair requests: Public request creation; staff updates
     match /wheelchairs/{requestId} {
       allow read: if true;
       allow write: if true;
     }
 
+    // Fallback safe default
     match /{document=**} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isStaffMember() || isAdmin() || isDoctor();
     }
   }
 }

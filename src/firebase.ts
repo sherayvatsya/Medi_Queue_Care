@@ -3,6 +3,7 @@ import {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithEmailAndPassword,
   signOut as fbSignOut,
   onAuthStateChanged,
   User as FirebaseUser,
@@ -24,7 +25,7 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import config from '../firebase-applet-config.json';
-import { Patient, Doctor, WheelchairRequest, PatientUser } from './types';
+import { Patient, Doctor, WheelchairRequest, PatientUser, StaffUser } from './types';
 import { INITIAL_DOCTORS, INITIAL_PATIENTS } from './data/mockData';
 
 // Initialize Firebase App
@@ -214,3 +215,78 @@ export async function saveRescheduleAuditToFirestore(audit: any): Promise<void> 
   }
 }
 
+
+
+export async function authenticateStaffWithRole(
+  emailInput: string,
+  passwordInput: string,
+  requiredRole?: 'doctor' | 'admin'
+): Promise<{ success: boolean; user?: StaffUser; error?: string }> {
+  const cleanEmail = emailInput.trim().toLowerCase();
+  const cleanPass = passwordInput.trim();
+  let authenticatedUid: string | null = null;
+
+  if (!cleanEmail || !cleanPass) {
+    return { success: false, error: 'Email and password are required.' };
+  }
+
+  try {
+    const credential = await signInWithEmailAndPassword(auth, cleanEmail, cleanPass);
+    authenticatedUid = credential.user.uid;
+    const staffSnapshot = await getDoc(doc(db, 'staff', credential.user.uid));
+
+    if (!staffSnapshot.exists()) {
+      await fbSignOut(auth);
+      return {
+        success: false,
+        error: 'No authorized staff profile is linked to this account.',
+      };
+    }
+
+    const staffData = staffSnapshot.data();
+    const role = staffData.role;
+    if (
+      (role !== 'admin' && role !== 'doctor' && role !== 'staff') ||
+      (requiredRole !== undefined && role !== requiredRole)
+    ) {
+      await fbSignOut(auth);
+      return {
+        success: false,
+        error: requiredRole
+          ? `This account is not authorized for the ${requiredRole} portal.`
+          : 'This account does not have an authorized staff role.',
+      };
+    }
+
+    const requiredFields = ['name', 'email', 'department', 'staffId', 'hospitalName'];
+    if (requiredFields.some((field) => typeof staffData[field] !== 'string' || !staffData[field].trim())) {
+      await fbSignOut(auth);
+      return {
+        success: false,
+        error: 'The staff profile is incomplete. Contact your hospital administrator.',
+      };
+    }
+
+    return {
+      success: true,
+      user: {
+        id: credential.user.uid,
+        name: staffData.name,
+        email: staffData.email,
+        role,
+        department: staffData.department,
+        staffId: staffData.staffId,
+        hospitalName: staffData.hospitalName,
+        avatarUrl: typeof staffData.avatarUrl === 'string' ? staffData.avatarUrl : undefined,
+      },
+    };
+  } catch (err: any) {
+    if (authenticatedUid && auth.currentUser?.uid === authenticatedUid) {
+      await fbSignOut(auth).catch((signOutError) => {
+        console.error('Unable to sign out after staff authentication failure:', signOutError);
+      });
+    }
+    console.error('Staff authentication failed:', err);
+    return { success: false, error: err?.message || 'Unable to authenticate staff account.' };
+  }
+}

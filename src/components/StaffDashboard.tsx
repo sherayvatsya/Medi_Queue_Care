@@ -6,6 +6,8 @@ import { getValidDoctorAvatar, handleDoctorImageError } from '../utils/doctorAva
 import { RescheduleModal } from './RescheduleModal';
 import { DoctorScheduleModal } from './DoctorScheduleModal';
 import { RescheduleAuditModal } from './RescheduleAuditModal';
+import { DoctorDashboard } from './DoctorDashboard';
+import { HospitalOvercrowdingPredictor } from './HospitalOvercrowdingPredictor';
 
 interface StaffDashboardProps {
   doctors: Doctor[];
@@ -30,6 +32,7 @@ interface StaffDashboardProps {
     customReason?: string,
     newRoom?: string
   ) => void;
+  onShowToast?: (title: string, desc: string, type?: 'info' | 'success' | 'urgent') => void;
   onSaveDoctorSchedule?: (
     doctorId: string,
     newStatus: DoctorStatus,
@@ -57,6 +60,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
   onAddProtocol,
   onReschedulePatient,
   onSaveDoctorSchedule,
+  onShowToast,
 }) => {
   // Filters & Local State
   const [selectedDepartment, setSelectedDepartment] = useState<string>('All');
@@ -169,7 +173,9 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
           ========================================================================= */}
       <div className="bg-white rounded-2xl p-2 border border-slate-200 shadow-xs flex items-center gap-1.5 overflow-x-auto scrollbar-none">
         {[
+          { id: 'doctor_dashboard', label: 'Doctor Dashboard', icon: 'fa-stethoscope', badge: 'Clinical' },
           { id: 'staff_dashboard', label: 'Staff Dashboard', icon: 'fa-gauge' },
+          { id: 'overcrowding_predictor', label: 'Overcrowding Predictor', icon: 'fa-brain', badge: 'AI Forecast' },
           { id: 'queue_management', label: 'Queue Management', icon: 'fa-list-check', badge: totalWaiting > 0 ? `${totalWaiting}` : undefined },
           { id: 'doctor_availability', label: 'Doctor Availability', icon: 'fa-user-doctor', badge: `${doctors.filter((d) => d.status === 'in_room').length} Active` },
           { id: 'patient_management', label: 'Patient Management', icon: 'fa-hospital-user', badge: `${patients.length}` },
@@ -203,6 +209,26 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
       </div>
 
       {/* =========================================================================
+          SECTION 0: DOCTOR DASHBOARD (Clinical Consultation, Prescriptions & Queue)
+          ========================================================================= */}
+      {activeSection === 'doctor_dashboard' && (
+        <div className="animate-in fade-in duration-200">
+          <DoctorDashboard
+            doctors={doctors}
+            patients={patients}
+            protocols={protocols}
+            staffUser={staffUser}
+            onUpdateDoctor={onUpdateDoctor}
+            onUpdatePatient={onUpdatePatient}
+            onCallNextPatient={onCallNextPatient}
+            onCompletePatient={onCompletePatient}
+            onEscalateToER={onEscalateToER}
+            onShowToast={onShowToast || ((_t, _d, _ty) => {})}
+          />
+        </div>
+      )}
+
+      {/* =========================================================================
           SECTION 1: STAFF DASHBOARD (Overview, Telemetry & Real-Time Summaries)
           ========================================================================= */}
       {(activeSection === 'staff_dashboard' || !activeSection) && (
@@ -231,6 +257,14 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
             <div className="flex items-center gap-2 flex-wrap">
               <button
                 type="button"
+                onClick={() => onSectionChange && onSectionChange('doctor_dashboard')}
+                className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-600 hover:to-indigo-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+              >
+                <i className="fa-solid fa-stethoscope text-xs"></i>
+                <span>Doctor Consultation Console</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => onSectionChange && onSectionChange('queue_management')}
                 className="px-3 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
               >
@@ -244,6 +278,14 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
               >
                 <i className="fa-solid fa-user-doctor text-xs text-sky-400"></i>
                 <span>Doctor Roster</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onSectionChange && onSectionChange('overcrowding_predictor')}
+                className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-700 hover:to-sky-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+              >
+                <i className="fa-solid fa-brain text-xs"></i>
+                <span>Overcrowding Predictor</span>
               </button>
             </div>
           </div>
@@ -449,6 +491,28 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
               </div>
             </div>
           </div>
+
+          {/* AI-Powered Hospital Overcrowding Predictor & What-If Simulation */}
+          <div className="pt-2">
+            <HospitalOvercrowdingPredictor
+              doctors={doctors}
+              patients={patients}
+              onShowToast={onShowToast}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          SECTION 1B: OVERCROWDING PREDICTOR DEDICATED FULL VIEW
+          ========================================================================= */}
+      {activeSection === 'overcrowding_predictor' && (
+        <div className="space-y-5 animate-in fade-in duration-200">
+          <HospitalOvercrowdingPredictor
+            doctors={doctors}
+            patients={patients}
+            onShowToast={onShowToast}
+          />
         </div>
       )}
 
@@ -611,7 +675,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
               <tbody className="divide-y divide-slate-100 bg-white">
                 {filteredPatients.map((pat) => {
                   const isCurrent = pat.status === 'in_consultation';
-                  const isER = pat.triageCategory === 'urgent_er' || pat.status === 'er_escalated';
+                  const isER = pat.triageCategory === 'urgent_er' || pat.status === 'er_escalated' || Boolean(pat.urgent);
                   const hasWheelchair = pat.wheelchairRequest && pat.wheelchairRequest.status !== 'completed';
 
                   return (
@@ -632,6 +696,11 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                         <span className="font-mono font-bold text-xs text-slate-900 bg-slate-100 px-2 py-1 rounded-lg border border-slate-200">
                           #{pat.tokenNumber}
                         </span>
+                        {pat.urgent && (
+                          <span className="ml-1.5 px-2 py-0.5 rounded-md bg-red-600 text-white text-[9px] font-black uppercase tracking-wider inline-flex items-center gap-1 shadow-xs animate-pulse">
+                            URGENT
+                          </span>
+                        )}
                       </td>
 
                       {/* Name & UHID */}

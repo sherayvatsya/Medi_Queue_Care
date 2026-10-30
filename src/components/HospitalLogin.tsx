@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { StaffUser } from '../types';
 import { playHospitalChime } from '../utils/audio';
+import { authenticateStaffWithRole } from '../firebase';
 import hospitalQueueBg from '../../assets/hospital-queue-bg.png';
 import {
   HeartPulse,
@@ -32,64 +33,14 @@ interface HospitalLoginProps {
   onOpenSupportModal?: () => void;
 }
 
-// Authorized Hospital Staff registry with secure credential validation
-export const VALID_STAFF_ACCOUNTS: Array<{
-  email: string;
-  passwordHash: string; // In production this is checked against Firebase/backend auth
-  user: StaffUser;
-}> = [
-  {
-    email: 'hospital@mediqueue.com',
-    passwordHash: 'Hospital@123',
-    user: {
-      id: 'staff-admin-01',
-      name: 'Dr. Alok Verma',
-      email: 'hospital@mediqueue.com',
-      role: 'admin',
-      department: 'OPD Administration & Clinical Operations',
-      staffId: 'MQ-STAFF-8801',
-      hospitalName: 'Max Super Specialty Hospital, Mohali',
-      avatarUrl: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=150&auto=format&fit=crop&q=80',
-    },
-  },
-  {
-    email: 'admin@mediqueue.com',
-    passwordHash: 'Hospital@123',
-    user: {
-      id: 'staff-admin-02',
-      name: 'Chief Clinical Admin',
-      email: 'admin@mediqueue.com',
-      role: 'admin',
-      department: 'Hospital Administration',
-      staffId: 'MQ-STAFF-8802',
-      hospitalName: 'Max Super Specialty Hospital, Mohali',
-      avatarUrl: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=150&auto=format&fit=crop&q=80',
-    },
-  },
-  {
-    email: 'dr.sharma@mediqueue.com',
-    passwordHash: 'Hospital@123',
-    user: {
-      id: 'doc-1',
-      name: 'Dr. Arvind Sharma, MD',
-      email: 'dr.sharma@mediqueue.com',
-      role: 'doctor',
-      department: 'Orthopedics & Joint Care',
-      staffId: 'MQ-DOC-204',
-      hospitalName: 'Max Super Specialty Hospital, Mohali',
-      avatarUrl: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=150&auto=format&fit=crop&q=80',
-    },
-  },
-];
-
 export const HospitalLogin: React.FC<HospitalLoginProps> = ({
   onLoginSuccess,
   onCancel,
   onShowToast,
   onOpenSupportModal,
 }) => {
-  const [email, setEmail] = useState<string>('hospital@mediqueue.com');
-  const [password, setPassword] = useState<string>('Hospital@123');
+  const [email, setEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
@@ -97,7 +48,7 @@ export const HospitalLogin: React.FC<HospitalLoginProps> = ({
   const [recoveryEmail, setRecoveryEmail] = useState<string>('');
   const [recoverySent, setRecoverySent] = useState<boolean>(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
 
@@ -116,40 +67,24 @@ export const HospitalLogin: React.FC<HospitalLoginProps> = ({
 
     setIsLoading(true);
 
-    setTimeout(() => {
-      setIsLoading(false);
+    setIsLoading(true);
+    const result = await authenticateStaffWithRole(cleanEmail, cleanPass);
+    setIsLoading(false);
 
-      const matchedAccount = VALID_STAFF_ACCOUNTS.find(
-        (acc) => acc.email.toLowerCase() === cleanEmail && acc.passwordHash === cleanPass
-      );
+    if (!result.success || !result.user) {
+      const error = result.error || 'Hospital staff authentication failed.';
+      setErrorMessage(error);
+      onShowToast('Access Denied', error, 'urgent');
+      return;
+    }
 
-      if (matchedAccount) {
-        playHospitalChime();
-        onShowToast(
-          'Hospital Authentication Verified',
-          `Welcome, ${matchedAccount.user.name} (${matchedAccount.user.department}). Staff dashboard unlocked.`,
-          'success'
-        );
-        onLoginSuccess(matchedAccount.user);
-      } else {
-        setErrorMessage('Invalid hospital email or password. Please verify your credentials or contact Hospital IT.');
-        onShowToast('Access Denied', 'Invalid hospital credentials entered.', 'urgent');
-      }
-    }, 650);
-  };
-
-  // Quick 1-Click Fast Demo Staff Login
-  const handleQuickStaffLogin = (staffAccount: (typeof VALID_STAFF_ACCOUNTS)[0]) => {
-    setEmail(staffAccount.email);
-    setPassword(staffAccount.passwordHash);
-    setErrorMessage('');
     playHospitalChime();
     onShowToast(
       'Hospital Authentication Verified',
-      `Welcome, ${staffAccount.user.name} (${staffAccount.user.department}). Staff dashboard unlocked.`,
+      `Welcome, ${result.user.name} (${result.user.department}). Staff dashboard unlocked.`,
       'success'
     );
-    onLoginSuccess(staffAccount.user);
+    onLoginSuccess(result.user);
   };
 
   const handleSendRecovery = (e: React.FormEvent) => {
@@ -409,38 +344,6 @@ export const HospitalLogin: React.FC<HospitalLoginProps> = ({
                   </button>
                 </div>
               </form>
-
-              {/* 1-Click Fast Demo Staff Logins */}
-              <div className="pt-3 border-t border-slate-200/80 dark:border-slate-800 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    1-Click Demo Staff:
-                  </span>
-                  <span className="text-[10px] text-sky-600 dark:text-sky-400 font-bold">Fast Test Login</span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {VALID_STAFF_ACCOUNTS.map((acc) => (
-                    <button
-                      key={acc.user.id}
-                      type="button"
-                      onClick={() => handleQuickStaffLogin(acc)}
-                      className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-sky-500 bg-slate-50 dark:bg-slate-900/60 hover:bg-sky-50/60 dark:hover:bg-slate-800 transition text-left flex items-center gap-2 cursor-pointer group"
-                    >
-                      <div className="w-6 h-6 rounded-full bg-sky-500/15 text-sky-600 dark:text-sky-400 flex items-center justify-center text-[10px] font-bold shrink-0">
-                        {acc.user.role === 'doctor' ? 'Dr' : 'Ad'}
-                      </div>
-                      <div className="truncate flex-1 min-w-0">
-                        <p className="text-[11px] font-bold text-slate-900 dark:text-white truncate group-hover:text-sky-600 dark:group-hover:text-sky-400">
-                          {acc.user.name.split(',')[0]}
-                        </p>
-                        <p className="text-[9px] text-slate-500 dark:text-slate-400 font-mono truncate capitalize">
-                          {acc.user.role} • {acc.user.staffId.slice(-4)}
-                        </p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
 
               {/* Return to Patient Portal Link */}
               <div className="pt-2 text-center border-t border-slate-100 dark:border-slate-800">

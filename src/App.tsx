@@ -8,6 +8,8 @@ import { StaffDashboard } from './components/StaffDashboard';
 import { TeleconsultModule } from './components/TeleconsultModule';
 import { HospitalLeafletMap } from './components/HospitalLeafletMap';
 import { HospitalLogin } from './components/HospitalLogin';
+import { DoctorLoginPage } from './components/DoctorLoginPage';
+import { AdminLoginPage } from './components/AdminLoginPage';
 import { OTPAuthModal } from './components/OTPAuthModal';
 import { EditProfileModal } from './components/EditProfileModal';
 import { Sidebar, SidebarTab } from './components/Sidebar';
@@ -35,7 +37,10 @@ export default function App() {
   // 1. Role-Based Access Control & User State Management
   const [userRole, setUserRole] = useState<UserRole>(() => {
     const savedRole = localStorage.getItem('mediqueue_role');
-    return savedRole === 'staff' ? 'staff' : 'patient';
+    if (savedRole === 'staff' || savedRole === 'admin' || savedRole === 'doctor') {
+      return savedRole as UserRole;
+    }
+    return 'patient';
   });
 
   const [staffUser, setStaffUser] = useState<StaffUser | null>(() => {
@@ -68,6 +73,7 @@ export default function App() {
 
   const [activeStaffSection, setActiveStaffSection] = useState<StaffSection>(() => {
     const hash = window.location.hash.replace('#', '').toLowerCase();
+    if (hash === 'doctor' || hash === 'doctor-dashboard') return 'doctor_dashboard';
     if (hash === 'queue' || hash === 'queue-management') return 'queue_management';
     if (hash === 'doctors' || hash === 'doctor-availability') return 'doctor_availability';
     if (hash === 'patients' || hash === 'patient-management') return 'patient_management';
@@ -76,10 +82,15 @@ export default function App() {
     return 'staff_dashboard';
   });
 
-  const [isHospitalLoginOpen, setIsHospitalLoginOpen] = useState<boolean>(() => {
+  const [isDoctorLoginOpen, setIsDoctorLoginOpen] = useState<boolean>(() => {
     const hash = window.location.hash.replace('#', '').toLowerCase();
-    return hash === 'hospital-login';
+    return hash === 'doctor-login' || hash === 'doctor-auth';
   });
+  const [isAdminLoginOpen, setIsAdminLoginOpen] = useState<boolean>(() => {
+    const hash = window.location.hash.replace('#', '').toLowerCase();
+    return hash === 'admin-login' || hash === 'hospital-login' || hash === 'staff-login';
+  });
+  const [isHospitalLoginOpen, setIsHospitalLoginOpen] = useState<boolean>(false);
 
   // Sidebar & Modal UI Controls
   const [activeSidebarTab, setActiveSidebarTab] = useState<SidebarTab>(() => {
@@ -160,21 +171,39 @@ export default function App() {
     updateUrlHash(hashMap[nav] || 'patient-pass');
   };
 
-  // Staff Section Change (Strictly for staff)
+  // Staff Section Change with Strict Role Enforcement
   const handleStaffSectionChange = (section: StaffSection) => {
-    if (userRole !== 'staff' || !staffUser) {
-      showToast(
-        'Staff Authentication Required',
-        'You must sign in with authorized hospital employee credentials to view staff sections.',
-        'urgent'
-      );
-      setIsHospitalLoginOpen(true);
-      updateUrlHash('hospital-login');
+    const isStaffOrDoctor = (userRole === 'staff' || userRole === 'doctor' || userRole === 'admin') && staffUser !== null;
+
+    if (!isStaffOrDoctor) {
+      if (section === 'doctor_dashboard') {
+        showToast('Doctor Authentication Required', 'Please sign in with Doctor credentials to access Doctor Dashboard.', 'urgent');
+        setIsDoctorLoginOpen(true);
+        updateUrlHash('doctor-login');
+      } else {
+        showToast('Admin Authentication Required', 'Please sign in with Administrator credentials.', 'urgent');
+        setIsAdminLoginOpen(true);
+        updateUrlHash('admin-login');
+      }
       return;
     }
+
+    // Role-based boundary enforcement: Doctor can only access doctor_dashboard
+    if (staffUser?.role === 'doctor' && section !== 'doctor_dashboard') {
+      showToast('Access Restricted', 'Physician accounts are restricted to the Doctor Dashboard.', 'urgent');
+      setActiveStaffSection('doctor_dashboard');
+      updateUrlHash('doctor-dashboard');
+      return;
+    }
+
+    // Admin accounts have full oversight access including Doctor Dashboard (read/supervise mode)
+    // No restriction — admins can view and monitor the Doctor Dashboard
+
     setActiveStaffSection(section);
     const hashMap: Record<StaffSection, string> = {
+      doctor_dashboard: 'doctor-dashboard',
       staff_dashboard: 'staff-dashboard',
+      overcrowding_predictor: 'overcrowding-predictor',
       queue_management: 'queue-management',
       doctor_availability: 'doctor-availability',
       patient_management: 'patient-management',
@@ -189,8 +218,17 @@ export default function App() {
     const handleHashChange = () => {
       const hash = window.location.hash.replace('#', '').toLowerCase();
 
-      if (hash === 'hospital-login') {
-        setIsHospitalLoginOpen(true);
+      if (hash === 'doctor-login' || hash === 'doctor-auth') {
+        setIsDoctorLoginOpen(true);
+        setIsAdminLoginOpen(false);
+        setIsHospitalLoginOpen(false);
+        return;
+      }
+
+      if (hash === 'admin-login' || hash === 'hospital-login' || hash === 'staff-login') {
+        setIsAdminLoginOpen(true);
+        setIsDoctorLoginOpen(false);
+        setIsHospitalLoginOpen(false);
         return;
       }
 
@@ -238,8 +276,13 @@ export default function App() {
 
       // Hospital routes
       const hospitalRoutes = [
+        'doctor',
+        'doctor-dashboard',
         'staff',
         'staff-dashboard',
+        'overcrowding',
+        'overcrowding-predictor',
+        'predictor',
         'queue',
         'queue-management',
         'doctors',
@@ -253,24 +296,46 @@ export default function App() {
 
       if (hospitalRoutes.includes(hash)) {
         const savedRole = localStorage.getItem('mediqueue_role');
-        const savedStaff = localStorage.getItem('mediqueue_staff_user');
+        const savedStaffStr = localStorage.getItem('mediqueue_staff_user');
+        let parsedStaff: any = null;
+        try {
+          if (savedStaffStr) parsedStaff = JSON.parse(savedStaffStr);
+        } catch {}
 
-        if (savedRole === 'staff' && savedStaff) {
+        const isAuthenticatedStaff = (savedRole === 'staff' || savedRole === 'doctor' || savedRole === 'admin') && parsedStaff;
+
+        if (hash === 'doctor' || hash === 'doctor-dashboard') {
+          if (isAuthenticatedStaff && parsedStaff?.role === 'doctor') {
+            setIsDoctorLoginOpen(false);
+            setIsAdminLoginOpen(false);
+            setIsHospitalLoginOpen(false);
+            setActiveStaffSection('doctor_dashboard');
+          } else {
+            showToast('Doctor Access Guard', 'Access restricted to authorized doctors. Please log in.', 'urgent');
+            setIsDoctorLoginOpen(true);
+            setIsAdminLoginOpen(false);
+            window.history.replaceState(null, '', '#doctor-login');
+          }
+          return;
+        }
+
+        // Admin routes
+        if (isAuthenticatedStaff && parsedStaff?.role === 'admin') {
+          setIsDoctorLoginOpen(false);
+          setIsAdminLoginOpen(false);
           setIsHospitalLoginOpen(false);
           if (hash === 'queue' || hash === 'queue-management') setActiveStaffSection('queue_management');
+          else if (hash === 'overcrowding' || hash === 'overcrowding-predictor' || hash === 'predictor') setActiveStaffSection('overcrowding_predictor');
           else if (hash === 'doctors' || hash === 'doctor-availability') setActiveStaffSection('doctor_availability');
           else if (hash === 'patients' || hash === 'patient-management') setActiveStaffSection('patient_management');
           else if (hash === 'reports' || hash === 'analytics') setActiveStaffSection('reports');
           else if (hash === 'hospital-profile') setActiveStaffSection('hospital_profile');
           else setActiveStaffSection('staff_dashboard');
         } else {
-          showToast(
-            'Hospital Access Guard',
-            'Restricted clinical management route. Please sign in with Hospital Staff credentials.',
-            'urgent'
-          );
-          setIsHospitalLoginOpen(true);
-          window.history.replaceState(null, '', '#hospital-login');
+          showToast('Admin Access Guard', 'Access restricted to hospital administrators. Please log in.', 'urgent');
+          setIsAdminLoginOpen(true);
+          setIsDoctorLoginOpen(false);
+          window.history.replaceState(null, '', '#admin-login');
         }
       }
     };
@@ -428,26 +493,37 @@ export default function App() {
     updateUrlHash(targetNav === 'teleconsult' ? 'teleconsult' : targetNav === 'patient_pass' ? 'patient-pass' : 'dashboard');
   };
 
-  // Handle Hospital Staff Login
+  // Handle Hospital Staff / Doctor / Admin Login
   const handleStaffLoginSuccess = (staff: StaffUser) => {
     setStaffUser(staff);
-    setUserRole('staff');
-    localStorage.setItem('mediqueue_role', 'staff');
+    const role = staff.role === 'doctor' ? 'doctor' : 'admin';
+    setUserRole(role as any);
+    localStorage.setItem('mediqueue_role', role);
     localStorage.setItem('mediqueue_staff_user', JSON.stringify(staff));
 
+    setIsDoctorLoginOpen(false);
+    setIsAdminLoginOpen(false);
     setIsHospitalLoginOpen(false);
-    setActiveStaffSection('staff_dashboard');
-    updateUrlHash('staff-dashboard');
+
+    if (staff.role === 'doctor') {
+      setActiveStaffSection('doctor_dashboard');
+      updateUrlHash('doctor-dashboard');
+    } else {
+      setActiveStaffSection('staff_dashboard');
+      updateUrlHash('staff-dashboard');
+    }
   };
 
   // Handle Logout (Strictly Clears Role, Patient Session, Active Hospital & Storage)
   const handleLogout = async () => {
-    if (userRole === 'staff') {
+    if (userRole === 'staff' || userRole === 'doctor' || userRole === 'admin') {
       setStaffUser(null);
       setUserRole('patient');
       localStorage.removeItem('mediqueue_role');
       localStorage.removeItem('mediqueue_staff_user');
-      showToast('Staff Session Ended', 'Hospital management logged out securely.', 'info');
+      showToast('Session Ended', 'Logged out securely.', 'info');
+      setIsDoctorLoginOpen(false);
+      setIsAdminLoginOpen(false);
       setIsHospitalLoginOpen(false);
       setPatientNavView('dashboard');
       updateUrlHash('dashboard');
@@ -721,6 +797,158 @@ export default function App() {
     }
   };
 
+  // VIEW: DEDICATED ADMIN LOGIN PAGE
+  if (isAdminLoginOpen) {
+    return (
+      <div className="min-h-screen text-[#14213D] dark:text-[#F1F5F9] flex flex-col font-sans transition-colors duration-200">
+        <AdminLoginPage
+          onLoginSuccess={(adminUser) => {
+            handleStaffLoginSuccess(adminUser);
+            setIsAdminLoginOpen(false);
+          }}
+          onNavigateDoctorLogin={() => {
+            setIsAdminLoginOpen(false);
+            setIsDoctorLoginOpen(true);
+            updateUrlHash('doctor-login');
+          }}
+          onBackToPatientPortal={() => {
+            setIsAdminLoginOpen(false);
+            updateUrlHash(currentUser ? 'dashboard' : 'patient-pass');
+          }}
+          onShowToast={showToast}
+        />
+
+        {/* Support Concierge Modal */}
+        <SupportModal
+          isOpen={showSupportModal}
+          onClose={() => setShowSupportModal(false)}
+          onShowToast={showToast}
+        />
+
+        {/* Real-time Toast Notifications */}
+        {toastMessage && (
+          <div className="fixed bottom-4 right-4 sm:bottom-5 sm:right-5 z-50 animate-in slide-in-from-bottom-5 duration-300 max-w-[calc(100vw-2rem)]">
+            <div
+              className={`p-3.5 sm:p-4 rounded-2xl border shadow-xl flex items-start gap-3 max-w-sm ${
+                toastMessage.type === 'urgent'
+                  ? 'bg-rose-50 border-rose-400 text-rose-900'
+                  : toastMessage.type === 'success'
+                  ? 'bg-emerald-50 border-emerald-400 text-emerald-900'
+                  : 'bg-white dark:bg-[#111827] border-[#E5EDF5] dark:border-[#1E293B] text-[#13213A] dark:text-white'
+              }`}
+            >
+              <div
+                className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 ${
+                  toastMessage.type === 'urgent'
+                    ? 'bg-rose-100 text-rose-600'
+                    : toastMessage.type === 'success'
+                    ? 'bg-emerald-100 text-emerald-600'
+                    : 'bg-sky-100 text-[#0B9FE3]'
+                }`}
+              >
+                {toastMessage.type === 'urgent' ? (
+                  <i className="fa-solid fa-triangle-exclamation text-xs"></i>
+                ) : toastMessage.type === 'success' ? (
+                  <i className="fa-solid fa-circle-check text-xs"></i>
+                ) : (
+                  <i className="fa-solid fa-bell text-xs"></i>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="text-xs font-bold font-heading truncate">{toastMessage.title}</h4>
+                <p className="text-[11px] text-[#64748B] dark:text-[#94A3B8] leading-tight mt-0.5">
+                  {toastMessage.description}
+                </p>
+              </div>
+              <button
+                onClick={() => setToastMessage(null)}
+                className="text-[#94A3B8] hover:text-[#13213A] dark:hover:text-white text-xs cursor-pointer"
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // VIEW: DEDICATED DOCTOR LOGIN PAGE
+  if (isDoctorLoginOpen) {
+    return (
+      <div className="min-h-screen text-[#14213D] dark:text-[#F1F5F9] flex flex-col font-sans transition-colors duration-200">
+        <DoctorLoginPage
+          onLoginSuccess={(doctorStaff) => {
+            handleStaffLoginSuccess(doctorStaff);
+            setIsDoctorLoginOpen(false);
+          }}
+          onNavigateAdminLogin={() => {
+            setIsDoctorLoginOpen(false);
+            setIsAdminLoginOpen(true);
+            updateUrlHash('admin-login');
+          }}
+          onBackToPatientPortal={() => {
+            setIsDoctorLoginOpen(false);
+            updateUrlHash(currentUser ? 'dashboard' : 'patient-pass');
+          }}
+          onShowToast={showToast}
+        />
+
+        {/* Support Concierge Modal */}
+        <SupportModal
+          isOpen={showSupportModal}
+          onClose={() => setShowSupportModal(false)}
+          onShowToast={showToast}
+        />
+
+        {/* Real-time Toast Notifications */}
+        {toastMessage && (
+          <div className="fixed bottom-4 right-4 sm:bottom-5 sm:right-5 z-50 animate-in slide-in-from-bottom-5 duration-300 max-w-[calc(100vw-2rem)]">
+            <div
+              className={`p-3.5 sm:p-4 rounded-2xl border shadow-xl flex items-start gap-3 max-w-sm ${
+                toastMessage.type === 'urgent'
+                  ? 'bg-rose-50 border-rose-400 text-rose-900'
+                  : toastMessage.type === 'success'
+                  ? 'bg-emerald-50 border-emerald-400 text-emerald-900'
+                  : 'bg-white dark:bg-[#111827] border-[#E5EDF5] dark:border-[#1E293B] text-[#13213A] dark:text-white'
+              }`}
+            >
+              <div
+                className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 ${
+                  toastMessage.type === 'urgent'
+                    ? 'bg-rose-100 text-rose-600'
+                    : toastMessage.type === 'success'
+                    ? 'bg-emerald-100 text-emerald-600'
+                    : 'bg-sky-100 text-[#0B9FE3]'
+                }`}
+              >
+                {toastMessage.type === 'urgent' ? (
+                  <i className="fa-solid fa-triangle-exclamation text-xs"></i>
+                ) : toastMessage.type === 'success' ? (
+                  <i className="fa-solid fa-circle-check text-xs"></i>
+                ) : (
+                  <i className="fa-solid fa-bell text-xs"></i>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="text-xs font-bold font-heading truncate">{toastMessage.title}</h4>
+                <p className="text-[11px] text-[#64748B] dark:text-[#94A3B8] leading-tight mt-0.5">
+                  {toastMessage.description}
+                </p>
+              </div>
+              <button
+                onClick={() => setToastMessage(null)}
+                className="text-[#94A3B8] hover:text-[#13213A] dark:hover:text-white text-xs cursor-pointer"
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   // VIEW: DEDICATED HOSPITAL STAFF & ADMIN LOGIN PAGE (Matching PatientAuth full-screen background)
   if (isHospitalLoginOpen) {
     return (
@@ -897,8 +1125,18 @@ export default function App() {
         }}
         onOpenPatientAuth={() => setShowGlobalAuthModal(true)}
         onOpenHospitalLogin={() => {
-          setIsHospitalLoginOpen(true);
-          updateUrlHash('hospital-login');
+          setIsAdminLoginOpen(true);
+          updateUrlHash('admin-login');
+        }}
+        onOpenDoctorLogin={() => {
+          setIsDoctorLoginOpen(true);
+          setIsAdminLoginOpen(false);
+          updateUrlHash('doctor-login');
+        }}
+        onOpenAdminLogin={() => {
+          setIsAdminLoginOpen(true);
+          setIsDoctorLoginOpen(false);
+          updateUrlHash('admin-login');
         }}
         onSignOut={handleLogout}
       />
@@ -918,9 +1156,9 @@ export default function App() {
 
         {/* Main App Body */}
         <main className="flex-1 min-w-0 p-2.5 sm:p-6 box-border">
-          {/* VIEW 1: HOSPITAL STAFF MANAGEMENT SUITE
-             (Renders only for verified Hospital Staff with dedicated staff sections) */}
-          {userRole === 'staff' && staffUser ? (
+          {/* VIEW 1: HOSPITAL STAFF & DOCTOR CLINICAL MANAGEMENT SUITE
+             (Renders for verified Hospital Staff, Admin, or Doctor) */}
+          {(userRole === 'staff' || userRole === 'admin' || userRole === 'doctor') && staffUser ? (
             /* VIEW 2: HOSPITAL STAFF MANAGEMENT SUITE
                (Renders only for verified Hospital Staff with dedicated staff sections) */
             <div className="animate-in fade-in duration-200">
@@ -1138,21 +1376,35 @@ export default function App() {
           <div className="flex items-center gap-3 text-[11px] text-[#64748B] dark:text-[#94A3B8] flex-wrap justify-center">
             <span className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-[#16B981]"></span>
-              {userRole === 'staff' ? 'Staff Session Active' : 'Patient Portal Mode'}
+              {(userRole === 'staff' || userRole === 'admin' || userRole === 'doctor')
+                ? (userRole === 'doctor' ? 'Doctor Clinical Session' : 'Hospital Admin Session')
+                : 'Patient Portal Mode'}
             </span>
             <span>•</span>
-            {userRole !== 'staff' && (
+            {userRole === 'patient' && (
               <>
                 <button
                   type="button"
                   onClick={() => {
-                    setIsHospitalLoginOpen(true);
-                    updateUrlHash('hospital-login');
+                    setIsDoctorLoginOpen(true);
+                    updateUrlHash('doctor-login');
+                  }}
+                  className="text-teal-600 hover:underline font-semibold cursor-pointer flex items-center gap-1"
+                >
+                  <i className="fa-solid fa-user-doctor text-[10px]"></i>
+                  <span>Doctor Login</span>
+                </button>
+                <span>•</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAdminLoginOpen(true);
+                    updateUrlHash('admin-login');
                   }}
                   className="text-[#087FC9] hover:underline font-semibold cursor-pointer flex items-center gap-1"
                 >
-                  <i className="fa-solid fa-user-shield text-[10px]"></i>
-                  <span>Hospital Staff Access</span>
+                  <i className="fa-solid fa-shield-halved text-[10px]"></i>
+                  <span>Admin Login</span>
                 </button>
                 <span>•</span>
               </>

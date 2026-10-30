@@ -13,6 +13,7 @@ import { getValidDoctorAvatar, handleDoctorImageError } from '../utils/doctorAva
 import { BookingConfirmationModal } from './BookingConfirmationModal';
 import { NearbyLabsModal } from './NearbyLabsModal';
 import { MedicalFileModal } from './MedicalFileModal';
+import { VoiceIntake } from './VoiceIntake';
 import {
   Building2,
   ChevronRight,
@@ -43,6 +44,8 @@ import {
   AlertTriangle,
   Stethoscope,
   Activity,
+  Mic,
+  FileText,
 } from 'lucide-react';
 
 interface PatientPortalProps {
@@ -91,6 +94,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
   }, [currentPatient]);
 
   // Form State initialized from currentUser if present - default to 'new' (General Medicine)
+  const [intakeMode, setIntakeMode] = useState<'typed' | 'voice'>('voice');
   const [selectedHospitalId, setSelectedHospitalId] = useState<string>(
     currentPatient?.hospitalId || 'hosp-max-mohali'
   );
@@ -520,8 +524,59 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
         </div>
       </div>
 
+      {/* INTAKE MODE SELECTOR (Voice vs Typed) */}
+      {currentStep !== 'token_active' && (
+        <div className="flex items-center justify-between p-1.5 bg-slate-100 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-2xl mb-2 shadow-2xs">
+          <button
+            type="button"
+            onClick={() => {
+              setIntakeMode('voice');
+              playHospitalChime();
+            }}
+            className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
+              intakeMode === 'voice'
+                ? 'bg-white dark:bg-neutral-800 text-[#087FC9] dark:text-sky-400 shadow-sm border border-slate-200 dark:border-neutral-700'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Mic className="w-4 h-4 text-[#087FC9]" />
+            <span>🎙️ Voice Registration (Hindi / English / Punjabi)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setIntakeMode('typed');
+              playHospitalChime();
+            }}
+            className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
+              intakeMode === 'typed'
+                ? 'bg-white dark:bg-neutral-800 text-[#087FC9] dark:text-sky-400 shadow-sm border border-slate-200 dark:border-neutral-700'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <FileText className="w-4 h-4 text-[#087FC9]" />
+            <span>📋 Standard Form Registration</span>
+          </button>
+        </div>
+      )}
+
+      {/* VOICE INTAKE COMPONENT */}
+      {currentStep !== 'token_active' && intakeMode === 'voice' && (
+        <VoiceIntake
+          doctors={doctors}
+          currentUser={currentUser}
+          onGenerateToken={(patient) => {
+            onGenerateToken(patient);
+            setCurrentStep('token_active');
+            setLatestBookedPatient(patient);
+          }}
+          onFallbackToTyped={() => setIntakeMode('typed')}
+          onShowToast={notify}
+        />
+      )}
+
       {/* STEP 1: APPOINTMENT TYPE SELECTION */}
-      {currentStep === 'type_selection' && (
+      {currentStep !== 'token_active' && intakeMode === 'typed' && currentStep === 'type_selection' && (
         <div className="space-y-6">
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-6 md:p-8 space-y-6">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
@@ -697,7 +752,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
       )}
 
       {/* STEP 2: AI PRE-CONSULTATION TRIAGE FLOW */}
-      {currentStep === 'triage' && (
+      {currentStep !== 'token_active' && intakeMode === 'typed' && currentStep === 'triage' && (
         <div className="space-y-6">
           {/* Step Bar & Switcher Tabs */}
           <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-sm space-y-4">
