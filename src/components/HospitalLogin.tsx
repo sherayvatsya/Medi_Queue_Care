@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { StaffUser } from '../types';
 import { playHospitalChime } from '../utils/audio';
-import { authenticateStaffWithRole } from '../firebase';
+import { authenticateStaffWithRole, sendStaffPasswordResetEmail } from '../firebase';
 import hospitalQueueBg from '../../assets/hospital-queue-bg.png';
 import {
   HeartPulse,
@@ -47,6 +47,8 @@ export const HospitalLogin: React.FC<HospitalLoginProps> = ({
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState<boolean>(false);
   const [recoveryEmail, setRecoveryEmail] = useState<string>('');
   const [recoverySent, setRecoverySent] = useState<boolean>(false);
+  const [isSendingRecovery, setIsSendingRecovery] = useState<boolean>(false);
+  const [recoveryError, setRecoveryError] = useState<string>('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,8 +66,6 @@ export const HospitalLogin: React.FC<HospitalLoginProps> = ({
       setErrorMessage('Please enter your hospital staff security password.');
       return;
     }
-
-    setIsLoading(true);
 
     setIsLoading(true);
     const result = await authenticateStaffWithRole(cleanEmail, cleanPass);
@@ -87,17 +87,23 @@ export const HospitalLogin: React.FC<HospitalLoginProps> = ({
     onLoginSuccess(result.user);
   };
 
-  const handleSendRecovery = (e: React.FormEvent) => {
+  const handleSendRecovery = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!recoveryEmail.trim()) return;
 
-    setRecoverySent(true);
-    playHospitalChime();
-    onShowToast(
-      'Password Reset Link Sent',
-      `Authorization link dispatched to ${recoveryEmail}. Please check your hospital inbox.`,
-      'info'
-    );
+    setIsSendingRecovery(true);
+    setRecoveryError('');
+    try {
+      await sendStaffPasswordResetEmail(recoveryEmail);
+      setRecoverySent(true);
+      playHospitalChime();
+      onShowToast('Password Reset Email Sent', 'Check your inbox for a password reset link.', 'success');
+    } catch (error) {
+      console.error('Unable to send staff password reset email:', error);
+      setRecoveryError('Unable to send the reset email. Check the address and try again, or contact hospital IT.');
+    } finally {
+      setIsSendingRecovery(false);
+    }
   };
 
   return (
@@ -290,6 +296,7 @@ export const HospitalLogin: React.FC<HospitalLoginProps> = ({
                       onClick={() => {
                         setShowForgotPasswordModal(true);
                         setRecoverySent(false);
+                        setRecoveryError('');
                         setRecoveryEmail(email || '');
                       }}
                       className="text-[11px] text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 hover:underline font-bold cursor-pointer"
@@ -416,9 +423,9 @@ export const HospitalLogin: React.FC<HospitalLoginProps> = ({
                 <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xl mx-auto">
                   <CheckCircle2 className="w-6 h-6" />
                 </div>
-                <h4 className="font-bold text-sm text-slate-900 dark:text-white">Recovery Instructions Dispatched</h4>
+                <h4 className="font-bold text-sm text-slate-900 dark:text-white">Check Your Email</h4>
                 <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                  Password reset authorization has been sent to <strong>{recoveryEmail}</strong>. Follow the instructions to reset your security credentials.
+                  If this address is registered, Firebase has sent a password reset link. Follow the link to choose a new password.
                 </p>
                 <button
                   type="button"
@@ -446,6 +453,11 @@ export const HospitalLogin: React.FC<HospitalLoginProps> = ({
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#162238] text-xs text-slate-900 dark:text-white focus:outline-hidden focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
                   />
                 </div>
+                {recoveryError && (
+                  <p role="alert" className="text-xs text-rose-600 dark:text-rose-400">
+                    {recoveryError}
+                  </p>
+                )}
                 <div className="flex items-center gap-2 pt-2">
                   <button
                     type="button"
@@ -456,10 +468,17 @@ export const HospitalLogin: React.FC<HospitalLoginProps> = ({
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-2 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold transition shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
+                    disabled={isSendingRecovery}
+                    className="flex-1 py-2 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold transition shadow-xs cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>Send Link</span>
+                    {isSendingRecovery ? (
+                      <span>Sending...</span>
+                    ) : (
+                      <>
+                        <Send className="w-3.5 h-3.5" />
+                        <span>Send Link</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </form>

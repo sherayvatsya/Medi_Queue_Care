@@ -4,6 +4,7 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   signInWithEmailAndPassword,
+  sendPasswordResetEmail,
   signOut as fbSignOut,
   onAuthStateChanged,
   User as FirebaseUser,
@@ -35,6 +36,15 @@ const app = getApps().length > 0 ? getApp() : initializeApp(config);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
+
+export async function sendStaffPasswordResetEmail(emailInput: string): Promise<void> {
+  const email = emailInput.trim().toLowerCase();
+  if (!email) {
+    throw new Error('Enter your hospital email address.');
+  }
+
+  await sendPasswordResetEmail(auth, email);
+}
 
 // Initialize Firestore with specific database ID if provided
 export const db = (config as any).firestoreDatabaseId
