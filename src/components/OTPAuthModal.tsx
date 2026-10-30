@@ -3,6 +3,8 @@ import { PatientUser } from '../types';
 import { INITIAL_PATIENT_USERS, generateAlphanumericUHID } from '../data/mockData';
 import { playHospitalChime } from '../utils/audio';
 import { signInWithGoogle } from '../firebase';
+import { validatePhoneNumber } from '../utils/phoneValidation';
+import { AlertCircle, CheckCircle2 } from 'lucide-react';
 
 interface OTPAuthModalProps {
   isOpen: boolean;
@@ -19,6 +21,7 @@ export const OTPAuthModal: React.FC<OTPAuthModalProps> = ({
 }) => {
   const [authStep, setAuthStep] = useState<1 | 2>(1);
   const [mobileNumber, setMobileNumber] = useState<string>('9820055432');
+  const [mobileError, setMobileError] = useState<string>('');
   const [otpDigits, setOtpDigits] = useState<string[]>(['5', '4', '1', '2', '9', '0']);
   const [resendTimer, setResendTimer] = useState<number>(30);
   const [canResend, setCanResend] = useState<boolean>(false);
@@ -78,8 +81,10 @@ export const OTPAuthModal: React.FC<OTPAuthModalProps> = ({
 
   const handleSendOTP = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!mobileNumber || mobileNumber.replace(/\D/g, '').length < 10) {
-      onShowToast('Invalid Mobile', 'Please enter a valid 10-digit mobile number.', 'urgent');
+    const res = validatePhoneNumber(mobileNumber, true);
+    if (!res.isValid) {
+      setMobileError(res.error);
+      onShowToast('Invalid Mobile Number', res.error, 'urgent');
       return;
     }
 
@@ -263,23 +268,46 @@ export const OTPAuthModal: React.FC<OTPAuthModalProps> = ({
             <form onSubmit={handleSendOTP} className="space-y-3.5">
               <div>
                 <label className="block text-xs font-bold text-slate-900 mb-1">
-                  Mobile Number (India)
+                  Mobile Number (India) <span className="text-rose-500">*</span>
                 </label>
-                <div className="flex items-center rounded-xl border border-slate-300 overflow-hidden focus-within:border-sky-500 focus-within:ring-2 focus-within:ring-sky-500/20 transition bg-slate-50">
-                  <div className="px-3 py-2.5 bg-slate-200/80 text-xs font-bold text-slate-700 border-r border-slate-300 flex items-center gap-1.5 shrink-0">
+                <div className={`flex items-center rounded-xl border ${
+                  mobileError
+                    ? 'border-rose-400 bg-rose-50/40'
+                    : mobileNumber.length === 10 && !validatePhoneNumber(mobileNumber, true).error
+                    ? 'border-emerald-500 bg-emerald-50/20'
+                    : 'border-slate-300 bg-slate-50'
+                } overflow-hidden focus-within:border-sky-500 focus-within:ring-2 focus-within:ring-sky-500/20 transition`}>
+                  <div className="px-3 py-2.5 bg-slate-200/80 text-xs font-bold text-slate-700 border-r border-slate-300 flex items-center gap-1.5 shrink-0 select-none">
                     <span>🇮🇳</span>
                     <span>+91</span>
                   </div>
                   <input
-                    type="tel"
+                    type="text"
+                    inputMode="numeric"
                     required
-                    maxLength={10}
-                    placeholder="98200 55432"
+                    maxLength={15}
+                    placeholder="10-digit number e.g. 9820055432"
                     value={mobileNumber}
-                    onChange={(e) => setMobileNumber(e.target.value.replace(/\D/g, ''))}
-                    className="flex-1 px-3 py-2.5 text-xs sm:text-sm font-semibold text-slate-900 bg-white focus:outline-hidden"
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setMobileNumber(val);
+                      const res = validatePhoneNumber(val, true);
+                      setMobileError(res.error);
+                    }}
+                    className="flex-1 px-3 py-2.5 text-xs sm:text-sm font-semibold font-mono text-slate-900 bg-white focus:outline-hidden"
                   />
+                  <div className="pr-3 text-[11px] font-bold tabular-nums pointer-events-none select-none">
+                    <span className={mobileError ? 'text-rose-500' : mobileNumber.length === 10 ? 'text-emerald-600' : mobileNumber.length > 0 ? 'text-amber-500' : 'text-slate-400'}>
+                      {mobileNumber.length}/10
+                    </span>
+                  </div>
                 </div>
+                {mobileError && (
+                  <p className="text-[11px] font-semibold text-rose-600 flex items-center gap-1 mt-1 animate-in fade-in">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{mobileError}</span>
+                  </p>
+                )}
               </div>
 
               {/* Quick Demo Fill Accounts */}

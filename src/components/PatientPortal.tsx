@@ -10,6 +10,7 @@ import { EditProfileModal } from './EditProfileModal';
 import { playHospitalChime, playUrgentAlertSound, announceTokenVoice } from '../utils/audio';
 import { exportTokenToPDF } from '../utils/pdfExport';
 import { getValidDoctorAvatar, handleDoctorImageError } from '../utils/doctorAvatar';
+import { validatePhoneNumber } from '../utils/phoneValidation';
 import { BookingConfirmationModal } from './BookingConfirmationModal';
 import { NearbyLabsModal } from './NearbyLabsModal';
 import { MedicalFileModal } from './MedicalFileModal';
@@ -102,7 +103,8 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
   const [patientName, setPatientName] = useState<string>(currentUser?.name || '');
   const [patientAge, setPatientAge] = useState<number>(currentUser?.age || 35);
   const [patientGender, setPatientGender] = useState<'Male' | 'Female' | 'Other'>(currentUser?.gender || 'Male');
-  const [patientPhone, setPatientPhone] = useState<string>(currentUser?.phone || '');
+  const [patientPhone, setPatientPhone] = useState<string>(currentUser?.phone ? currentUser.phone.replace('+91', '').trim() : '');
+  const [patientPhoneError, setPatientPhoneError] = useState<string>('');
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>(
     doctors.find((d) => d.department === 'General Medicine')?.id || doctors[0]?.id || 'doc-1'
   );
@@ -239,6 +241,15 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
 
   // Submit and create token
   const handleCreateToken = (isEmergency = false) => {
+    if (!isEmergency && patientPhone.trim()) {
+      const phoneRes = validatePhoneNumber(patientPhone, true);
+      if (!phoneRes.isValid) {
+        setPatientPhoneError(phoneRes.error);
+        notify('Invalid Mobile Number', phoneRes.error, 'urgent');
+        return;
+      }
+    }
+
     const prefix = selectedDoctor?.department === 'Orthopedics' ? 'A' : selectedDoctor?.department === 'Cardiology' ? 'C' : 'G';
     const randomNum = Math.floor(Math.random() * 40) + 45;
     const tokenStr = isEmergency ? `ER-${Math.floor(Math.random() * 80) + 10}` : `${prefix}-${randomNum}`;
@@ -1146,13 +1157,45 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
 
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1.5">Phone Number (SMS Token)</label>
-                <input
-                  type="text"
-                  value={patientPhone}
-                  onChange={(e) => setPatientPhone(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-900 text-xs focus:outline-hidden focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 font-mono"
-                  placeholder="+91 98XXX XXXXX"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={patientPhone}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setPatientPhone(val);
+                      const res = val.trim() ? validatePhoneNumber(val, false) : { isValid: true, error: '' };
+                      setPatientPhoneError(res.error);
+                    }}
+                    className={`w-full px-3.5 py-2.5 pr-14 rounded-xl bg-white border ${
+                      patientPhoneError
+                        ? 'border-rose-400 bg-rose-50/40'
+                        : patientPhone.length === 10 && !validatePhoneNumber(patientPhone, false).error
+                        ? 'border-emerald-500 bg-emerald-50/20'
+                        : 'border-slate-200'
+                    } text-slate-900 text-xs focus:outline-hidden focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 font-mono`}
+                    placeholder="10-digit number e.g. 9820012345"
+                    maxLength={15}
+                  />
+                  <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold tabular-nums pointer-events-none select-none ${
+                    patientPhoneError
+                      ? 'text-rose-500'
+                      : patientPhone.length === 10
+                      ? 'text-emerald-600'
+                      : patientPhone.length > 0
+                      ? 'text-amber-500'
+                      : 'text-slate-400'
+                  }`}>
+                    {patientPhone.length}/10
+                  </span>
+                </div>
+                {patientPhoneError && (
+                  <p className="text-[11px] font-semibold text-rose-600 flex items-center gap-1 mt-1 animate-in fade-in">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                    <span>{patientPhoneError}</span>
+                  </p>
+                )}
               </div>
             </div>
           </div>

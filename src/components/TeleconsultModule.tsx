@@ -6,6 +6,8 @@ import { INITIAL_PATIENT_USERS, generateAlphanumericUHID } from '../data/mockDat
 import { signInWithGoogle, saveUserProfileToFirestore, savePatientTokenToFirestore } from '../firebase';
 import { exportTokenToPDF } from '../utils/pdfExport';
 import confetti from 'canvas-confetti';
+import { validatePhoneNumber } from '../utils/phoneValidation';
+import { AlertCircle, CheckCircle2 } from 'lucide-react';
 
 interface TeleconsultModuleProps {
   doctors: Doctor[];
@@ -123,6 +125,7 @@ export const TeleconsultModule: React.FC<TeleconsultModuleProps> = ({
   // Sign Up Form State
   const [signupName, setSignupName] = useState<string>('');
   const [signupPhone, setSignupPhone] = useState<string>('');
+  const [signupPhoneError, setSignupPhoneError] = useState<string>('');
   const [signupEmail, setSignupEmail] = useState<string>('');
   const [signupAge, setSignupAge] = useState<number>(32);
   const [signupGender, setSignupGender] = useState<'Male' | 'Female' | 'Other'>('Male');
@@ -346,10 +349,15 @@ export const TeleconsultModule: React.FC<TeleconsultModuleProps> = ({
       setAuthError('Please enter your full legal name.');
       return;
     }
-    if (!signupPhone.trim()) {
-      setAuthError('Please provide a valid contact mobile number.');
+
+    const phoneRes = validatePhoneNumber(signupPhone, true);
+    if (!phoneRes.isValid) {
+      setSignupPhoneError(phoneRes.error);
+      setAuthError(phoneRes.error);
+      onShowToast('Invalid Phone Number', phoneRes.error, 'urgent');
       return;
     }
+
     if (!agreedTerms) {
       setAuthError('Please accept the tele-health consultation and EHR consent to continue.');
       return;
@@ -2343,14 +2351,46 @@ export const TeleconsultModule: React.FC<TeleconsultModuleProps> = ({
                       <label className="text-xs font-bold text-slate-700 block mb-1">
                         Mobile Number *
                       </label>
-                      <input
-                        type="tel"
-                        value={signupPhone}
-                        onChange={(e) => setSignupPhone(e.target.value)}
-                        placeholder="9876543210"
-                        className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm font-medium focus:border-sky-500 focus:outline-hidden"
-                        required
-                      />
+                      <div className="relative">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={signupPhone}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setSignupPhone(val);
+                            const res = validatePhoneNumber(val, true);
+                            setSignupPhoneError(res.error);
+                          }}
+                          placeholder="10-digit number e.g. 9820012345"
+                          maxLength={15}
+                          className={`w-full px-3.5 py-2 pr-14 rounded-xl border ${
+                            signupPhoneError
+                              ? 'border-rose-400 bg-rose-50/40'
+                              : signupPhone.length === 10 && !validatePhoneNumber(signupPhone, true).error
+                              ? 'border-emerald-500 bg-emerald-50/20'
+                              : 'border-slate-300'
+                          } text-xs sm:text-sm font-mono font-medium focus:border-sky-500 focus:outline-hidden`}
+                          required
+                        />
+                        <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold tabular-nums pointer-events-none select-none ${
+                          signupPhoneError
+                            ? 'text-rose-500'
+                            : signupPhone.length === 10
+                            ? 'text-emerald-600'
+                            : signupPhone.length > 0
+                            ? 'text-amber-500'
+                            : 'text-slate-400'
+                        }`}>
+                          {signupPhone.length}/10
+                        </span>
+                      </div>
+                      {signupPhoneError && (
+                        <p className="text-[11px] font-semibold text-rose-600 flex items-center gap-1 mt-1 animate-in fade-in">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          <span>{signupPhoneError}</span>
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className="text-xs font-bold text-slate-700 block mb-1">

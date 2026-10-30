@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { PatientUser } from '../types';
 import { playHospitalChime } from '../utils/audio';
+import { validatePhoneNumber } from '../utils/phoneValidation';
+import { AlertCircle, CheckCircle2 } from 'lucide-react';
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -51,6 +53,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   const [newAllergyInput, setNewAllergyInput] = useState<string>('');
   const [chronicConditions, setChronicConditions] = useState<string[]>([]);
   const [newConditionInput, setNewConditionInput] = useState<string>('');
+  const [phoneError, setPhoneError] = useState<string>('');
+  const [emergencyPhoneError, setEmergencyPhoneError] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   // Sync state whenever modal opens or currentUser changes
@@ -60,12 +64,14 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
       setAge(currentUser.age || 30);
       setGender(currentUser.gender || 'Male');
       setBloodGroup(currentUser.bloodGroup || 'B+');
-      setPhone(currentUser.phone || '');
+      setPhone(currentUser.phone ? currentUser.phone.replace('+91', '').trim() : '');
       setEmail(currentUser.email || '');
       setEmergencyContactName(currentUser.emergencyContactName || '');
-      setEmergencyContactPhone(currentUser.emergencyContactPhone || '');
+      setEmergencyContactPhone(currentUser.emergencyContactPhone ? currentUser.emergencyContactPhone.replace('+91', '').trim() : '');
       setAllergies(currentUser.allergies || []);
       setChronicConditions(currentUser.chronicConditions || []);
+      setPhoneError('');
+      setEmergencyPhoneError('');
     }
   }, [currentUser, isOpen]);
 
@@ -122,6 +128,20 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
       return;
     }
 
+    const phoneRes = validatePhoneNumber(phone, true);
+    if (!phoneRes.isValid) {
+      setPhoneError(phoneRes.error);
+      onShowToast('Invalid Mobile Number', phoneRes.error, 'urgent');
+      return;
+    }
+
+    const emergRes = emergencyContactPhone.trim() ? validatePhoneNumber(emergencyContactPhone, false) : { isValid: true, error: '', digits: '' };
+    if (!emergRes.isValid) {
+      setEmergencyPhoneError(emergRes.error);
+      onShowToast('Invalid Emergency Phone', emergRes.error, 'urgent');
+      return;
+    }
+
     setIsSubmitting(true);
 
     const updatedProfile: PatientUser = {
@@ -130,10 +150,10 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
       age: Number(age) || 30,
       gender,
       bloodGroup,
-      phone: phone.trim() || currentUser.phone,
+      phone: `+91 ${phoneRes.digits}`,
       email: email.trim() || currentUser.email,
       emergencyContactName: emergencyContactName.trim() || 'Next of Kin',
-      emergencyContactPhone: emergencyContactPhone.trim() || '+91 99999 00000',
+      emergencyContactPhone: emergRes.digits ? `+91 ${emergRes.digits}` : currentUser.emergencyContactPhone,
       allergies,
       chronicConditions,
     };
@@ -254,15 +274,47 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
 
               <div>
                 <label className="block font-bold text-slate-800 mb-1">
-                  Mobile Number
+                  Mobile Number <span className="text-rose-500">*</span>
                 </label>
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+91 98200 55432"
-                  className="w-full px-3 py-2 text-xs sm:text-sm font-mono font-semibold rounded-xl border border-slate-300 bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-hidden"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={phone}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setPhone(val);
+                      const res = validatePhoneNumber(val, true);
+                      setPhoneError(res.error);
+                    }}
+                    placeholder="10-digit number e.g. 9820055432"
+                    maxLength={15}
+                    className={`w-full px-3 py-2 pr-14 text-xs sm:text-sm font-mono font-semibold rounded-xl border ${
+                      phoneError
+                        ? 'border-rose-400 bg-rose-50/40'
+                        : phone.length === 10 && !validatePhoneNumber(phone, true).error
+                        ? 'border-emerald-500 bg-emerald-50/20'
+                        : 'border-slate-300 bg-white'
+                    } focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-hidden`}
+                  />
+                  <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold tabular-nums pointer-events-none select-none ${
+                    phoneError
+                      ? 'text-rose-500'
+                      : phone.length === 10
+                      ? 'text-emerald-600'
+                      : phone.length > 0
+                      ? 'text-amber-500'
+                      : 'text-slate-400'
+                  }`}>
+                    {phone.length}/10
+                  </span>
+                </div>
+                {phoneError && (
+                  <p className="text-[11px] font-semibold text-rose-600 flex items-center gap-1 mt-1 animate-in fade-in">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{phoneError}</span>
+                  </p>
+                )}
               </div>
 
               <div className="sm:col-span-2">
@@ -303,13 +355,45 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                 <label className="block font-bold text-slate-800 mb-1">
                   Emergency Phone
                 </label>
-                <input
-                  type="tel"
-                  value={emergencyContactPhone}
-                  onChange={(e) => setEmergencyContactPhone(e.target.value)}
-                  placeholder="+91 98200 11223"
-                  className="w-full px-3 py-2 text-xs sm:text-sm font-mono font-medium rounded-xl border border-amber-300 bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-hidden"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={emergencyContactPhone}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setEmergencyContactPhone(val);
+                      const res = val.trim() ? validatePhoneNumber(val, false) : { isValid: true, error: '' };
+                      setEmergencyPhoneError(res.error);
+                    }}
+                    placeholder="10-digit number e.g. 9820011223"
+                    maxLength={15}
+                    className={`w-full px-3 py-2 pr-14 text-xs sm:text-sm font-mono font-medium rounded-xl border ${
+                      emergencyPhoneError
+                        ? 'border-rose-400 bg-rose-50/40'
+                        : emergencyContactPhone.length === 10 && !validatePhoneNumber(emergencyContactPhone, false).error
+                        ? 'border-emerald-500 bg-emerald-50/20'
+                        : 'border-amber-300 bg-white'
+                    } focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-hidden`}
+                  />
+                  <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold tabular-nums pointer-events-none select-none ${
+                    emergencyPhoneError
+                      ? 'text-rose-500'
+                      : emergencyContactPhone.length === 10
+                      ? 'text-emerald-600'
+                      : emergencyContactPhone.length > 0
+                      ? 'text-amber-500'
+                      : 'text-slate-400'
+                  }`}>
+                    {emergencyContactPhone.length}/10
+                  </span>
+                </div>
+                {emergencyPhoneError && (
+                  <p className="text-[11px] font-semibold text-rose-600 flex items-center gap-1 mt-1 animate-in fade-in">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{emergencyPhoneError}</span>
+                  </p>
+                )}
               </div>
             </div>
           </div>

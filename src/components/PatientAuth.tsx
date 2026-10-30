@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import {
   PatientUser,
   MedicalExtractionResult,
@@ -13,6 +13,7 @@ import { SmartDocumentUpload } from './SmartDocumentUpload';
 import { VoiceIntake } from './VoiceIntake';
 import { INITIAL_DOCTORS } from '../data/mockData';
 import { ExtractedFieldIndicator } from './ExtractedFieldIndicator';
+import { validatePhoneNumber } from '../utils/phoneValidation';
 import {
   ShieldCheck,
   Send,
@@ -71,6 +72,9 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
   const [signupEmergencyPhone, setSignupEmergencyPhone] = useState<string>('');
   const [selectedAllergies, setSelectedAllergies] = useState<string[]>([]);
   const [customAllergy, setCustomAllergy] = useState<string>('');
+  const [customAllergyInput, setCustomAllergyInput] = useState<string>('');
+  const [showCustomAllergyInput, setShowCustomAllergyInput] = useState<boolean>(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
   const [customCondition, setCustomCondition] = useState<string>('');
   const [showCustomConditionInput, setShowCustomConditionInput] = useState<boolean>(false);
@@ -94,20 +98,18 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
     if (!v.trim()) return 'Name is required.';
     if (v.trim().length < 2) return 'Name must be at least 2 characters.';
     if (v.trim().length > 80) return 'Name must be 80 characters or fewer.';
-    if (!/^[p{L}s'-]+$/u.test(v.trim())) return 'Name may only contain letters, spaces, hyphens, and apostrophes.';
+    if (!/^[a-zA-Z\s'-]+$/.test(v.trim())) return 'Name may only contain letters, spaces, hyphens, and apostrophes.';
     return '';
   };
 
-  const validatePhone = (v: string): string => {
-    const digits = v.replace(/D/g, '');
-    if (!digits) return 'Phone number is required.';
-    if (digits.length !== 10) return 'Phone must be exactly 10 digits.';
-    return '';
+  const validatePhone = (v: string, isRequired: boolean = true): string => {
+    const res = validatePhoneNumber(v, isRequired);
+    return res.error;
   };
 
   const validateEmail = (v: string): string => {
     if (!v.trim()) return ''; // optional
-    if (!/^[^s@]+@[^s@]+.[^s@]+$/.test(v.trim())) return 'Enter a valid email address.';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim())) return 'Enter a valid email address.';
     return '';
   };
 
@@ -390,19 +392,34 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
   // Sign Up Submission
   const handleSignUpSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!signupName.trim()) {
-      setErrorMessage('Please provide your full legal name.');
-      return;
-    }
-    if (!signupPhone.trim()) {
-      setErrorMessage('Please provide a valid contact mobile number.');
-      return;
-    }
-    if (!agreedTerms) {
-      setErrorMessage('Please accept the OPD digital triage & EHR consent to proceed.');
+    setErrorMessage('');
+
+    const nameErr = validateName(signupName);
+    const phoneRes = validatePhoneNumber(signupPhone, true);
+    const emailErr = validateEmail(signupEmail);
+    const emergPhoneRes = signupEmergencyPhone.trim() ? validatePhoneNumber(signupEmergencyPhone, false) : { isValid: true, error: '' };
+
+    const errors: Record<string, string> = {};
+    if (nameErr) errors.name = nameErr;
+    if (!phoneRes.isValid) errors.phone = phoneRes.error;
+    if (emailErr) errors.email = emailErr;
+    if (!emergPhoneRes.isValid) errors.emergencyPhone = emergPhoneRes.error;
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      const firstError = Object.values(errors)[0];
+      setErrorMessage(firstError);
+      notify('Validation Error', firstError, 'urgent');
       return;
     }
 
+    if (!agreedTerms) {
+      setErrorMessage('Please accept the OPD digital triage & EHR consent to proceed.');
+      notify('Consent Required', 'Please accept the OPD digital triage & EHR consent to proceed.', 'urgent');
+      return;
+    }
+
+    setIsSubmitting(true);
     const generatedUhid = generateAlphanumericUHID('DEL');
 
     const newPatientUser: PatientUser = {
@@ -1068,29 +1085,36 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
                         </label>
                         <div className="relative">
                           <input
-                            type="tel"
+                            type="text"
                             inputMode="numeric"
                             value={signupPhone}
                             onChange={(e) => {
-                              const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
-                              setSignupPhone(digits);
-                              setFieldErrors(prev => ({ ...prev, phone: '' }));
+                              const val = e.target.value;
+                              setSignupPhone(val);
+                              const res = validatePhoneNumber(val, true);
+                              setFieldErrors(prev => ({ ...prev, phone: res.error }));
                             }}
                             onPaste={(e) => {
                               e.preventDefault();
                               const pasted = e.clipboardData.getData('text');
-                              const digits = pasted.replace(/\D/g, '').slice(0, 10);
-                              setSignupPhone(digits);
-                              setFieldErrors(prev => ({ ...prev, phone: '' }));
+                              setSignupPhone(pasted);
+                              const res = validatePhoneNumber(pasted, true);
+                              setFieldErrors(prev => ({ ...prev, phone: res.error }));
                             }}
                             placeholder="10-digit number e.g. 9820012345"
-                            maxLength={10}
-                            className={`w-full h-12 px-3.5 pr-14 rounded-xl border ${fieldErrors.phone ? 'border-rose-400 bg-rose-50/30' : signupPhone.length === 10 ? 'border-emerald-500 bg-emerald-50/20' : getFieldBorderClass('mobileNumber')} bg-white dark:bg-[#1A263C] text-xs sm:text-sm text-[#10244A] dark:text-white focus:outline-hidden focus:ring-2 focus:ring-[#0B9FE3]/20 transition font-mono tracking-wider`}
+                            maxLength={15}
+                            className={`w-full h-12 px-3.5 pr-14 rounded-xl border ${fieldErrors.phone ? 'border-rose-400 bg-rose-50/30 dark:bg-rose-950/20' : signupPhone.length === 10 && !validatePhoneNumber(signupPhone, true).error ? 'border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/20' : getFieldBorderClass('mobileNumber')} bg-white dark:bg-[#1A263C] text-xs sm:text-sm text-[#10244A] dark:text-white focus:outline-hidden focus:ring-2 focus:ring-[#0B9FE3]/20 transition font-mono tracking-wider`}
                           />
-                          <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold tabular-nums pointer-events-none select-none ${signupPhone.length === 10 ? 'text-emerald-600' : signupPhone.length > 0 ? 'text-amber-500' : 'text-slate-400'}`}>
+                          <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold tabular-nums pointer-events-none select-none ${fieldErrors.phone ? 'text-rose-500' : signupPhone.length === 10 ? 'text-emerald-600' : signupPhone.length > 0 ? 'text-amber-500' : 'text-slate-400'}`}>
                             {signupPhone.length}/10
                           </span>
                         </div>
+                        {fieldErrors.phone && (
+                          <p className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1.5 mt-1 animate-in fade-in">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                            <span>{fieldErrors.phone}</span>
+                          </p>
+                        )}
                         <ExtractedFieldIndicator
                           confidence={fieldConfidence.mobileNumber}
                           fieldName="Mobile Number"
@@ -1182,25 +1206,52 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
                         <label className="block text-xs font-bold text-[#10244A] dark:text-[#F1F5F9]">
                           Emergency Contact Phone
                         </label>
-                        <input
-                          type="tel"
-                          inputMode="numeric"
-                          value={signupEmergencyPhone}
-                          onChange={(e) => {
-                              const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
-                              setSignupEmergencyPhone(digits);
-                              setFieldErrors(prev => ({ ...prev, emergencyPhone: '' }));
+                        <div className="relative">
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={signupEmergencyPhone}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setSignupEmergencyPhone(val);
+                              const res = val.trim() ? validatePhoneNumber(val, false) : { isValid: true, error: '' };
+                              setFieldErrors(prev => ({ ...prev, emergencyPhone: res.error }));
                             }}
-                          onPaste={(e) => {
+                            onPaste={(e) => {
                               e.preventDefault();
                               const pasted = e.clipboardData.getData('text');
-                              const digits = pasted.replace(/\D/g, '').slice(0, 10);
-                              setSignupEmergencyPhone(digits);
+                              setSignupEmergencyPhone(pasted);
+                              const res = pasted.trim() ? validatePhoneNumber(pasted, false) : { isValid: true, error: '' };
+                              setFieldErrors(prev => ({ ...prev, emergencyPhone: res.error }));
                             }}
-                          placeholder="10-digit emergency number"
-                          maxLength={10}
-                          className={`w-full h-11 px-3.5 rounded-xl border ${getFieldBorderClass('emergencyContactPhone')} bg-white dark:bg-[#1A263C] text-xs text-[#10244A] dark:text-white focus:outline-hidden transition`}
-                        />
+                            placeholder="10-digit emergency number"
+                            maxLength={15}
+                            className={`w-full h-11 px-3.5 pr-14 rounded-xl border ${
+                              fieldErrors.emergencyPhone
+                                ? 'border-rose-400 bg-rose-50/30 dark:bg-rose-950/20'
+                                : signupEmergencyPhone.length === 10 && !validatePhoneNumber(signupEmergencyPhone, false).error
+                                ? 'border-emerald-500 bg-emerald-50/20'
+                                : getFieldBorderClass('emergencyContactPhone')
+                            } bg-white dark:bg-[#1A263C] text-xs text-[#10244A] dark:text-white focus:outline-hidden transition font-mono`}
+                          />
+                          <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold tabular-nums pointer-events-none select-none ${
+                            fieldErrors.emergencyPhone
+                              ? 'text-rose-500'
+                              : signupEmergencyPhone.length === 10
+                              ? 'text-emerald-600'
+                              : signupEmergencyPhone.length > 0
+                              ? 'text-amber-500'
+                              : 'text-slate-400'
+                          }`}>
+                            {signupEmergencyPhone.length}/10
+                          </span>
+                        </div>
+                        {fieldErrors.emergencyPhone && (
+                          <p className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1 mt-1 animate-in fade-in">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                            <span>{fieldErrors.emergencyPhone}</span>
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -1358,13 +1409,47 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
             <p className="text-xs text-[#64748B] dark:text-[#94A3B8]">
               Enter your registered 10-digit mobile number. We will send your unique hospital UHID via SMS.
             </p>
-            <input
-              type="tel"
-              placeholder="+91 98200 55432"
-              value={recoveryPhone}
-              onChange={(e) => setRecoveryPhone(e.target.value)}
-              className="w-full h-11 px-3.5 rounded-xl border border-[#DCE7F0] dark:border-[#334155] bg-white dark:bg-[#1A263C] text-xs text-[#10244A] dark:text-white focus:outline-hidden"
-            />
+            <div className="space-y-1">
+              <div className="relative">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="10-digit mobile number e.g. 9820055432"
+                  value={recoveryPhone}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setRecoveryPhone(val);
+                    const res = validatePhoneNumber(val, true);
+                    setFieldErrors(prev => ({ ...prev, recoveryPhone: res.error }));
+                  }}
+                  maxLength={15}
+                  className={`w-full h-11 px-3.5 pr-14 rounded-xl border ${
+                    fieldErrors.recoveryPhone
+                      ? 'border-rose-400 bg-rose-50/30'
+                      : recoveryPhone.length === 10 && !validatePhoneNumber(recoveryPhone, true).error
+                      ? 'border-emerald-500 bg-emerald-50/20'
+                      : 'border-[#DCE7F0] dark:border-[#334155]'
+                  } bg-white dark:bg-[#1A263C] text-xs font-mono text-[#10244A] dark:text-white focus:outline-hidden`}
+                />
+                <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold tabular-nums pointer-events-none select-none ${
+                  fieldErrors.recoveryPhone
+                    ? 'text-rose-500'
+                    : recoveryPhone.length === 10
+                    ? 'text-emerald-600'
+                    : recoveryPhone.length > 0
+                    ? 'text-amber-500'
+                    : 'text-slate-400'
+                }`}>
+                  {recoveryPhone.length}/10
+                </span>
+              </div>
+              {fieldErrors.recoveryPhone && (
+                <p className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1 mt-1 animate-in fade-in">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{fieldErrors.recoveryPhone}</span>
+                </p>
+              )}
+            </div>
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 type="button"
@@ -1376,8 +1461,14 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
               <button
                 type="button"
                 onClick={() => {
+                  const res = validatePhoneNumber(recoveryPhone, true);
+                  if (!res.isValid) {
+                    setFieldErrors(prev => ({ ...prev, recoveryPhone: res.error }));
+                    notify('Invalid Phone Number', res.error, 'urgent');
+                    return;
+                  }
                   setShowForgotUhidModal(false);
-                  notify('UHID Sent via SMS', `Your UHID (SJMC-2026-DEL-08942A) has been dispatched to ${recoveryPhone || 'your mobile'}.`, 'success');
+                  notify('UHID Sent via SMS', `Your UHID (SJMC-2026-DEL-08942A) has been dispatched to +91 ${res.digits}.`, 'success');
                 }}
                 className="px-4 py-2 rounded-xl text-xs font-bold bg-[#0B9FE3] hover:bg-[#087FC9] text-white cursor-pointer"
               >
