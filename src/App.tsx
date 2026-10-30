@@ -305,13 +305,14 @@ export default function App() {
         const isAuthenticatedStaff = (savedRole === 'staff' || savedRole === 'doctor' || savedRole === 'admin') && parsedStaff;
 
         if (hash === 'doctor' || hash === 'doctor-dashboard') {
-          if (isAuthenticatedStaff && parsedStaff?.role === 'doctor') {
+          // Allow both doctor role AND admin role (admin has full oversight access)
+          if (isAuthenticatedStaff && (parsedStaff?.role === 'doctor' || parsedStaff?.role === 'admin')) {
             setIsDoctorLoginOpen(false);
             setIsAdminLoginOpen(false);
             setIsHospitalLoginOpen(false);
             setActiveStaffSection('doctor_dashboard');
           } else {
-            showToast('Doctor Access Guard', 'Access restricted to authorized doctors. Please log in.', 'urgent');
+            showToast('Doctor Authentication Required', 'Please sign in with Doctor credentials to access Doctor Dashboard.', 'urgent');
             setIsDoctorLoginOpen(true);
             setIsAdminLoginOpen(false);
             window.history.replaceState(null, '', '#doctor-login');

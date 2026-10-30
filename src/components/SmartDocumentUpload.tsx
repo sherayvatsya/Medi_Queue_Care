@@ -34,7 +34,11 @@ export const SmartDocumentUpload: React.FC<SmartDocumentUploadProps> = ({
   const [extractedData, setExtractedData] =
     useState<MedicalExtractionResult | null>(null);
 
+  const [ocrProgress, setOcrProgress] = useState<number>(0);
+  const [ocrStage, setOcrStage] = useState<string>('');
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const progIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const notify = (
     title: string,

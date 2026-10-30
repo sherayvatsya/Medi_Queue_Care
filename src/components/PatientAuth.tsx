@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   PatientUser,
   MedicalExtractionResult,
@@ -89,6 +89,27 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
   const [extractedDiagnoses, setExtractedDiagnoses] = useState<string[]>([]);
   const [extractedDocType, setExtractedDocType] = useState<string>('');
   const [extractionBannerVisible, setExtractionBannerVisible] = useState<boolean>(false);
+
+  const validateName = (v: string): string => {
+    if (!v.trim()) return 'Name is required.';
+    if (v.trim().length < 2) return 'Name must be at least 2 characters.';
+    if (v.trim().length > 80) return 'Name must be 80 characters or fewer.';
+    if (!/^[p{L}s'-]+$/u.test(v.trim())) return 'Name may only contain letters, spaces, hyphens, and apostrophes.';
+    return '';
+  };
+
+  const validatePhone = (v: string): string => {
+    const digits = v.replace(/D/g, '');
+    if (!digits) return 'Phone number is required.';
+    if (digits.length !== 10) return 'Phone must be exactly 10 digits.';
+    return '';
+  };
+
+  const validateEmail = (v: string): string => {
+    if (!v.trim()) return ''; // optional
+    if (!/^[^s@]+@[^s@]+.[^s@]+$/.test(v.trim())) return 'Enter a valid email address.';
+    return '';
+  };
 
   const notify = (title: string, desc: string, type: 'info' | 'success' | 'urgent' = 'info') => {
     if (onShowToast) {
@@ -422,6 +443,21 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
     onLoginSuccess(newPatientUser);
   };
 
+  const handleAddCustomAllergy = () => {
+    const val = customAllergyInput.trim();
+    if (!val) return;
+    if (val.length > 60) {
+      setFieldErrors(prev => ({ ...prev, customAllergy: 'Custom allergy name is too long (max 60 chars).' }));
+      return;
+    }
+    if (!selectedAllergies.includes(val)) {
+      setSelectedAllergies(prev => [...prev.filter(a => a !== 'None'), val]);
+    }
+    setCustomAllergyInput('');
+    setShowCustomAllergyInput(false);
+    setFieldErrors(prev => { const n = { ...prev }; delete n.customAllergy; return n; });
+  };
+
   const toggleAllergy = (item: string) => {
     if (item === 'None') {
       setSelectedAllergies(['None']);
@@ -578,7 +614,7 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
                 }`}
               >
                 <Mic className="w-3.5 h-3.5 text-[#087FC9]" />
-                <span className="truncate font-extrabold">🎙️ Voice OPD</span>
+                <span className="truncate font-extrabold">ðŸŽ™ï¸ Voice OPD</span>
                 {authMode === 'voice' && (
                   <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#087FC9]"></div>
                 )}
@@ -1030,14 +1066,31 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
                         <label className="block text-xs font-bold text-[#10244A] dark:text-[#F1F5F9]">
                           Mobile Number <span className="text-[#EF4444]">*</span>
                         </label>
-                        <input
-                          type="tel"
-                          value={signupPhone}
-                          onChange={(e) => setSignupPhone(e.target.value)}
-                          placeholder="e.g. 98200 12345"
-                          className={`w-full h-12 px-3.5 rounded-xl border ${getFieldBorderClass('mobileNumber')} bg-white dark:bg-[#1A263C] text-xs sm:text-sm text-[#10244A] dark:text-white focus:outline-hidden focus:ring-2 focus:ring-[#0B9FE3]/20 transition`}
-                          required
-                        />
+                        <div className="relative">
+                          <input
+                            type="tel"
+                            inputMode="numeric"
+                            value={signupPhone}
+                            onChange={(e) => {
+                              const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+                              setSignupPhone(digits);
+                              setFieldErrors(prev => ({ ...prev, phone: '' }));
+                            }}
+                            onPaste={(e) => {
+                              e.preventDefault();
+                              const pasted = e.clipboardData.getData('text');
+                              const digits = pasted.replace(/\D/g, '').slice(0, 10);
+                              setSignupPhone(digits);
+                              setFieldErrors(prev => ({ ...prev, phone: '' }));
+                            }}
+                            placeholder="10-digit number e.g. 9820012345"
+                            maxLength={10}
+                            className={`w-full h-12 px-3.5 pr-14 rounded-xl border ${fieldErrors.phone ? 'border-rose-400 bg-rose-50/30' : signupPhone.length === 10 ? 'border-emerald-500 bg-emerald-50/20' : getFieldBorderClass('mobileNumber')} bg-white dark:bg-[#1A263C] text-xs sm:text-sm text-[#10244A] dark:text-white focus:outline-hidden focus:ring-2 focus:ring-[#0B9FE3]/20 transition font-mono tracking-wider`}
+                          />
+                          <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold tabular-nums pointer-events-none select-none ${signupPhone.length === 10 ? 'text-emerald-600' : signupPhone.length > 0 ? 'text-amber-500' : 'text-slate-400'}`}>
+                            {signupPhone.length}/10
+                          </span>
+                        </div>
                         <ExtractedFieldIndicator
                           confidence={fieldConfidence.mobileNumber}
                           fieldName="Mobile Number"
@@ -1131,9 +1184,21 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
                         </label>
                         <input
                           type="tel"
+                          inputMode="numeric"
                           value={signupEmergencyPhone}
-                          onChange={(e) => setSignupEmergencyPhone(e.target.value)}
-                          placeholder="e.g. +91 98200 99887"
+                          onChange={(e) => {
+                              const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+                              setSignupEmergencyPhone(digits);
+                              setFieldErrors(prev => ({ ...prev, emergencyPhone: '' }));
+                            }}
+                          onPaste={(e) => {
+                              e.preventDefault();
+                              const pasted = e.clipboardData.getData('text');
+                              const digits = pasted.replace(/\D/g, '').slice(0, 10);
+                              setSignupEmergencyPhone(digits);
+                            }}
+                          placeholder="10-digit emergency number"
+                          maxLength={10}
                           className={`w-full h-11 px-3.5 rounded-xl border ${getFieldBorderClass('emergencyContactPhone')} bg-white dark:bg-[#1A263C] text-xs text-[#10244A] dark:text-white focus:outline-hidden transition`}
                         />
                       </div>
