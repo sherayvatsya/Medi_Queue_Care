@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
-import { Doctor, Patient, PreTestItem, PatientType, PatientUser, WheelchairRequest } from '../types';
+import { Doctor, Patient, PreTestItem, PatientType, PatientUser } from '../types';
 import { SYMPTOMS_LIST, LAB_LOCATION_DEFAULT, generateAlphanumericUHID } from '../data/mockData';
 import { REAL_HOSPITALS_NETWORK } from '../data/hospitalsData';
 import { PatientAuth } from './PatientAuth';
@@ -38,7 +38,6 @@ import {
   CheckCircle2,
   ShieldCheck,
   MapPin,
-  Share2,
   Bell,
   AlertTriangle,
   Stethoscope,
@@ -59,6 +58,8 @@ interface PatientPortalProps {
   onUpdateUserProfile?: (updatedUser: PatientUser) => void;
   onRequestTeleconsult?: () => void;
   onOpenHospitalMap?: () => void;
+  startRegistration?: boolean;
+  onConsumeRegistrationRequest?: () => void;
 }
 
 export const PatientPortal: React.FC<PatientPortalProps> = ({
@@ -75,20 +76,31 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
   onUpdateUserProfile,
   onRequestTeleconsult,
   onOpenHospitalMap,
+  startRegistration = false,
+  onConsumeRegistrationRequest,
 }) => {
-  // Stepper state: 'type_selection' | 'triage' | 'token_active'
-  const [currentStep, setCurrentStep] = useState<'type_selection' | 'triage' | 'token_active'>(
-    currentPatient ? 'token_active' : 'type_selection'
+  // Keep the dashboard separate from the visit registration flow.
+  const [currentStep, setCurrentStep] = useState<'home' | 'type_selection' | 'triage' | 'token_active'>(
+    startRegistration ? 'type_selection' : currentPatient ? 'token_active' : 'home'
   );
 
-  // Automatically update step when currentPatient is set or cleared
+  // Sync only when the active pass ID changes. `currentPatient` is derived in
+  // the parent on each render, so depending on the whole object would reset a
+  // user's selected registration step during unrelated updates.
   useEffect(() => {
     if (currentPatient) {
-      setCurrentStep('token_active');
+      setCurrentStep((step) => step === 'home' ? 'token_active' : step);
     } else {
-      setCurrentStep('type_selection');
+      setCurrentStep((step) => step === 'token_active' ? 'home' : step);
     }
-  }, [currentPatient]);
+  }, [currentPatient?.id]);
+
+  useEffect(() => {
+    if (startRegistration) {
+      setCurrentStep('type_selection');
+      onConsumeRegistrationRequest?.();
+    }
+  }, [startRegistration, onConsumeRegistrationRequest]);
 
   // Form State initialized from currentUser if present - default to 'new' (General Medicine)
   const [selectedHospitalId, setSelectedHospitalId] = useState<string>(
@@ -110,9 +122,6 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
   const [optInFastTrackLab, setOptInFastTrackLab] = useState<boolean>(true);
   
   // Wheelchair assistance request state
-  const [wheelchairRequested, setWheelchairRequested] = useState<boolean>(false);
-  const [wheelchairLocation, setWheelchairLocation] = useState<string>('Main Gate 1 Entrance');
-  const [showWheelchairModal, setShowWheelchairModal] = useState<boolean>(false);
 
   // Modals & UI States
   const [showSlipModal, setShowSlipModal] = useState<boolean>(false);
@@ -196,7 +205,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
     if (user.allergies?.length) {
       setAllergiesText(user.allergies.join(', '));
     }
-    setCurrentStep('type_selection');
+    setCurrentStep('home');
   };
 
   // Emergency bypass
@@ -253,19 +262,6 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
 
     const patientUhid = currentUser?.uhid || generateAlphanumericUHID('DEL');
 
-    let wcRequestObj: WheelchairRequest | undefined = undefined;
-    if (wheelchairRequested) {
-      wcRequestObj = {
-        id: `wc-${Date.now()}`,
-        patientId: `pat-${Date.now()}`,
-        patientName: patientName || currentUser?.name || 'Patient Guest',
-        tokenNumber: tokenStr,
-        location: wheelchairLocation,
-        requestedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        status: 'requested',
-      };
-    }
-
     const allSymptomsList = [...selectedSymptoms];
     if (otherSymptomsText.trim()) {
       allSymptomsList.push(`Manual: ${otherSymptomsText.trim()}`);
@@ -309,7 +305,6 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
       estimatedWaitMinutes: waitMins,
       status: isEmergency ? 'in_consultation' : 'waiting',
       createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      wheelchairRequest: wcRequestObj,
     };
 
     onGenerateToken(newPatient);
@@ -338,45 +333,6 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
     setSmsSentNotice(true);
     notify('SMS Dispatched', `Live Wayfinding link sent to ${currentPatient?.phone || patientPhone}`, 'success');
     setTimeout(() => setSmsSentNotice(false), 5000);
-  };
-
-  const handleToggleWheelchairInActiveToken = () => {
-    if (!currentPatient) return;
-    const isNowRequested = !wheelchairRequested;
-    setWheelchairRequested(isNowRequested);
-    playHospitalChime();
-
-    const updatedWc: WheelchairRequest | undefined = isNowRequested
-      ? {
-          id: `wc-${Date.now()}`,
-          patientId: currentPatient.id,
-          patientName: currentPatient.name,
-          tokenNumber: currentPatient.tokenNumber,
-          location: wheelchairLocation,
-          requestedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          status: 'requested',
-        }
-      : undefined;
-
-    onUpdatePatient({
-      ...currentPatient,
-      wheelchairRequest: updatedWc,
-    });
-
-    if (isNowRequested) {
-      notify(
-        'Wheelchair Dispatched',
-        `Porter dispatched to ${wheelchairLocation}. Estimated arrival in ~2 mins.`,
-        'urgent'
-      );
-    } else {
-      notify('Wheelchair Cancelled', 'Wheelchair assistance request marked resolved.', 'info');
-    }
-  };
-
-  const handleShareWhatsApp = () => {
-    playHospitalChime();
-    notify('Status Shared', 'WhatsApp queue tracking link copied to clipboard & shared.', 'info');
   };
 
   // Sync patient room with live doctor room if doctor relocated
@@ -502,6 +458,29 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Patient dashboard home: registration begins only after an explicit action. */}
+      {currentStep === 'home' && !currentPatient && (
+        <section className="rounded-2xl border border-[#DCEBE3] bg-white/80 p-6 sm:p-8 shadow-[0_8px_24px_rgba(0,107,103,0.05)] backdrop-blur-sm">
+          <div className="mx-auto max-w-xl text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#E8F8EF] text-[#087F78]">
+              <Stethoscope className="h-6 w-6" />
+            </div>
+            <h2 className="mt-4 text-lg font-bold text-[#173B40]">Ready to plan a visit?</h2>
+            <p className="mt-1 text-sm text-[#647875]">
+              Start a visit to choose an OPD category, share your symptoms, and review the next steps.
+            </p>
+            <button
+              type="button"
+              onClick={() => setCurrentStep('type_selection')}
+              className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl bg-[#087F78] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#006B67] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2EBB86]"
+            >
+              <Plus className="h-4 w-4" />
+              Start visit registration
+            </button>
+          </div>
+        </section>
+      )}
 
       {/* STEP 1: APPOINTMENT TYPE SELECTION */}
       {currentStep !== 'token_active' && currentStep === 'type_selection' && (
@@ -1354,74 +1333,6 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
             </div>
           )}
 
-          {/* Emergency Wheelchair Request Toggle at Intake */}
-          <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm space-y-3">
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={() => {
-                setWheelchairRequested(!wheelchairRequested);
-                playHospitalChime();
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  setWheelchairRequested(!wheelchairRequested);
-                  playHospitalChime();
-                }
-              }}
-              className="flex items-center justify-between cursor-pointer select-none p-1 -m-1 rounded-xl hover:bg-slate-50 transition"
-            >
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  checked={wheelchairRequested}
-                  onChange={(e) => {
-                    e.stopPropagation();
-                    setWheelchairRequested(e.target.checked);
-                    playHospitalChime();
-                  }}
-                  className="w-4 h-4 rounded text-sky-500 accent-sky-500 cursor-pointer"
-                />
-                <span className="flex items-center gap-2 text-xs font-bold text-slate-900">
-                  <i className="fa-solid fa-wheelchair text-sky-500"></i>
-                  <span>Request Wheelchair Assistance at Hospital Entrance</span>
-                </span>
-              </div>
-              <span
-                className={`px-3 py-1 text-xs font-semibold rounded-full border transition ${
-                  wheelchairRequested
-                    ? 'bg-amber-50 text-amber-700 border-amber-200'
-                    : 'bg-slate-100 text-slate-600 border-slate-200'
-                }`}
-              >
-                {wheelchairRequested ? 'Porter Requested' : 'Optional'}
-              </span>
-            </div>
-
-            {wheelchairRequested && (
-              <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 space-y-2.5 text-xs text-emerald-900 animate-in fade-in duration-200">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold">Select Arrival Gate for Porter Pickup:</span>
-                  <span className="text-xs font-bold text-emerald-800">Est. Porter Arrival: 2 mins</span>
-                </div>
-                <select
-                  value={wheelchairLocation}
-                  onChange={(e) => {
-                    setWheelchairLocation(e.target.value);
-                    playHospitalChime();
-                  }}
-                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-emerald-300 text-slate-900 text-xs font-semibold focus:outline-hidden cursor-pointer"
-                >
-                  <option value="Main Gate 1 Entrance">Main Gate 1 Entrance (Reception Atrium)</option>
-                  <option value="Metro Skywalk Gate 3">Metro Skywalk Gate 3 (Overpass)</option>
-                  <option value="Emergency Gate 2 / Casualty">Emergency Gate 2 / Casualty Bay</option>
-                  <option value="Multi-Level Parking P1">Multi-Level Parking P1 (Level 0 Drop-off)</option>
-                </select>
-              </div>
-            )}
-          </div>
-
           {/* Submit Action */}
           <div className="pt-2">
             {!hasCriticalSymptom ? (
@@ -1716,30 +1627,6 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                 </div>
               )}
 
-              {/* Secondary Utility Actions (Wheelchair & Family Share) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={handleToggleWheelchairInActiveToken}
-                  className={`p-3.5 rounded-2xl border text-xs font-bold flex items-center justify-center gap-2.5 transition cursor-pointer shadow-2xs select-none active:scale-[0.98] ${
-                    currentPatient.wheelchairRequest || wheelchairRequested
-                      ? 'bg-emerald-50 border-emerald-300 text-emerald-800 ring-2 ring-emerald-500/20'
-                      : 'bg-white dark:bg-[#111827] border-[#E5EDF5] dark:border-[#1E293B] text-[#13213A] dark:text-white hover:bg-[#F6F9FC]'
-                  }`}
-                >
-                  <i className={`fa-solid fa-wheelchair text-sm ${currentPatient.wheelchairRequest || wheelchairRequested ? 'text-emerald-600' : 'text-[#087FC9]'}`}></i>
-                  <span>{currentPatient.wheelchairRequest || wheelchairRequested ? 'Wheelchair Dispatched' : 'Request Wheelchair'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleShareWhatsApp}
-                  className="p-3.5 rounded-2xl border bg-white dark:bg-[#111827] border-[#E5EDF5] dark:border-[#1E293B] hover:bg-[#F6F9FC] text-[#13213A] dark:text-white text-xs font-bold flex items-center justify-center gap-2.5 transition cursor-pointer shadow-2xs select-none active:scale-[0.98]"
-                >
-                  <Share2 className="w-4 h-4 text-[#16B981]" />
-                  <span>Share with Family</span>
-                </button>
-              </div>
             </div>
 
             {/* RIGHT COLUMN: ~35% (lg:col-span-5) */}
@@ -2371,9 +2258,9 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
             <div className="bg-white p-2.5 flex justify-around border-t border-slate-200">
               <button
                 type="button"
-                onClick={() => setCurrentStep('type_selection')}
+                onClick={() => setCurrentStep(currentPatient ? 'token_active' : 'home')}
                 className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs transition cursor-pointer ${
-                  currentStep === 'type_selection' ? 'bg-sky-500 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  currentStep === 'type_selection' || currentStep === 'home' ? 'bg-sky-500 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
                 title="Category / Intake"
               >

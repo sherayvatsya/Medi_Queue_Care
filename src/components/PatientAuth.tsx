@@ -19,7 +19,6 @@ import {
   Lock,
   ArrowRight,
   Sparkles,
-  CheckCircle2,
   AlertCircle,
   UserCheck,
   Mic,
@@ -250,7 +249,6 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
   const [extractedMedications, setExtractedMedications] = useState<string[]>([]);
   const [extractedDiagnoses, setExtractedDiagnoses] = useState<string[]>([]);
   const [extractedDocType, setExtractedDocType] = useState<string>('');
-  const [extractionBannerVisible, setExtractionBannerVisible] = useState<boolean>(false);
 
   const validateName = (v: string): string => {
     if (!v.trim()) return 'Name is required.';
@@ -281,7 +279,7 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
     { key: 'name', en: 'What is your full name?', hi: 'आपका पूरा नाम क्या है?' },
     { key: 'age', en: 'How old are you?', hi: 'आपकी उम्र कितनी है?' },
     { key: 'phone', en: 'What is your 10 digit mobile number?', hi: 'आपका दस अंकों का मोबाइल नंबर क्या है?' },
-    { key: 'email', en: 'Please say or spell your email address. Say at and dot clearly.', hi: 'कृपया अपना ईमेल पता बोलें। एट और डॉट स्पष्ट रूप से बोलें।' },
+    { key: 'email', en: 'Please say or spell your email address using English letters. Say at and dot clearly.', hi: 'Please say or spell your email address using English letters. Say at and dot clearly.' },
     { key: 'gender', en: 'What is your gender: male, female, or other?', hi: 'आपका लिंग क्या है: पुरुष, महिला या अन्य?' },
     { key: 'bloodGroup', en: 'What is your blood group? You can say unknown.', hi: 'आपका ब्लड ग्रुप क्या है? पता न हो तो अज्ञात कहें।' },
     { key: 'symptoms', en: 'What symptoms are you experiencing? You can say none to skip.', hi: 'आपको क्या लक्षण हैं? छोड़ने के लिए कोई समस्या नहीं कहें।' },
@@ -306,6 +304,8 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
     }
 
     if (signupVoiceComplete) return;
+    const question = signupVoiceQuestions[activeQuestionIndex];
+    const questionLanguage = question.key === 'email' ? 'en-IN' : signupVoiceLanguage;
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
       setSignupVoiceError('Voice input is unavailable in this browser. You can enter the same details in the form.');
@@ -315,7 +315,8 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
     setSignupVoiceError('');
     try {
       const recognition = new SpeechRecognition();
-      recognition.lang = signupVoiceLanguage;
+      // Email addresses are Latin-script values, so always recognize this answer in English.
+      recognition.lang = questionLanguage;
       recognition.interimResults = false;
       recognition.maxAlternatives = 1;
       recognition.onresult = (event: any) => {
@@ -341,8 +342,8 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
         }
         if (question.key === 'email' && !skipAnswer) {
           const email = normalized.toLowerCase()
-            .replace(/एट\s*द\s*रेट|at the rate|at/gi, '@')
-            .replace(/डॉट|dot/gi, '.')
+            .replace(/\b(?:at the rate|at rate|at)\b/gi, '@')
+            .replace(/\b(?:dot)\b/gi, '.')
             .replace(/\s+/g, '');
           setSignupEmail(email);
           const emailError = validateEmail(email);
@@ -381,12 +382,11 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
       };
       recognition.onend = () => setIsDictatingSignup(false);
       setIsDictatingSignup(true);
-      const question = signupVoiceQuestions[activeQuestionIndex];
-      const prompt = signupVoiceLanguage === 'hi-IN' ? question.hi : question.en;
+      const prompt = questionLanguage === 'hi-IN' ? question.hi : question.en;
       if ('speechSynthesis' in window && typeof SpeechSynthesisUtterance !== 'undefined') {
         window.speechSynthesis.cancel();
         const spokenQuestion = new SpeechSynthesisUtterance(prompt);
-        spokenQuestion.lang = signupVoiceLanguage;
+        spokenQuestion.lang = questionLanguage;
         spokenQuestion.onend = () => recognition.start();
         spokenQuestion.onerror = () => recognition.start();
         window.speechSynthesis.speak(spokenQuestion);
@@ -518,7 +518,6 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
     if (data.documentType) setExtractedDocType(data.documentType);
 
     setExtractedFields(newExtracted);
-    setExtractionBannerVisible(true);
   };
 
   const handleClearExtractedData = () => {
@@ -527,7 +526,6 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
     setExtractedMedications([]);
     setExtractedDiagnoses([]);
     setExtractedDocType('');
-    setExtractionBannerVisible(false);
     setSignupName('');
     setSignupPhone('');
     setSignupEmail('');
@@ -1020,29 +1018,6 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
                       onShowToast={notify}
                     />
 
-                    {/* Extraction Success Notice Banner */}
-                    {extractionBannerVisible && (
-                      <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded-xl text-xs text-emerald-950 dark:text-emerald-200 flex items-center justify-between gap-3 shadow-2xs animate-in fade-in duration-300">
-                        <div className="flex items-start gap-2.5">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
-                          <div>
-                            <p className="font-bold">
-                              Information extracted from your document.
-                            </p>
-                            <p className="text-[11px] text-emerald-800 dark:text-emerald-300 mt-0.5">
-                              Please review the highlighted fields below. All information can be edited.
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={handleClearExtractedData}
-                          className="px-2.5 py-1 bg-white dark:bg-[#111827] hover:bg-slate-50 border border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 rounded-lg text-[11px] font-bold transition cursor-pointer shrink-0 shadow-2xs"
-                        >
-                          Clear Auto-fill
-                        </button>
-                      </div>
-                    )}
                   </div>
                   )}
 
@@ -1064,7 +1039,7 @@ export const PatientAuth: React.FC<PatientAuthProps> = ({
                     <p className="-mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-300">After signup, your symptoms will help match you with relevant doctors.</p>
                     {!signupVoiceComplete && <div className="rounded-xl border border-sky-100 bg-white/80 p-3 dark:border-sky-900 dark:bg-slate-900/60">
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">Question {signupVoiceQuestionIndex + 1} of {signupVoiceQuestions.length}</p>
-                      <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{signupVoiceLanguage === 'hi-IN' ? signupVoiceQuestions[signupVoiceQuestionIndex].hi : signupVoiceQuestions[signupVoiceQuestionIndex].en}</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{signupVoiceQuestions[signupVoiceQuestionIndex].key === 'email' ? signupVoiceQuestions[signupVoiceQuestionIndex].en : signupVoiceLanguage === 'hi-IN' ? signupVoiceQuestions[signupVoiceQuestionIndex].hi : signupVoiceQuestions[signupVoiceQuestionIndex].en}</p>
                     </div>}
                     {signupVoiceTranscript && <p className="rounded-xl bg-white/80 p-3 text-xs text-slate-700 dark:bg-slate-900/60 dark:text-slate-200"><b>Recognized:</b> {signupVoiceTranscript}</p>}
                     {signupVoiceComplete && <p className="text-xs text-emerald-700 dark:text-emerald-300">Voice answers are filled in. Review and edit them in the form below. Password and consent must be entered manually.</p>}

@@ -210,13 +210,13 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => handleDemoAdminSelect('hospital@mediqueue.com')}
+              onClick={() => handleDemoAdminSelect('admin10mediqueue@gmail.com')}
               className="px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-neutral-900 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 border border-slate-200 dark:border-neutral-800 text-left flex items-center justify-between transition cursor-pointer"
             >
               <span className="font-semibold text-slate-800 dark:text-slate-200">
                 Dr. Alok Verma (Operations Admin)
               </span>
-              <span className="text-[10px] font-mono text-indigo-600">hospital@mediqueue.com</span>
+              <span className="text-[10px] font-mono text-indigo-600">admin10mediqueue@gmail.com</span>
             </button>
           </div>
         </div>

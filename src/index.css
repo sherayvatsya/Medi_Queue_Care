@@ -782,6 +782,63 @@ header.sticky {
   }
 }
 
+/* Doctor console: calm clinical surfaces with readable teal contrast. */
+.mq-doctor-dashboard > .grid > div > .bg-white {
+  background: rgba(255, 255, 255, 0.86) !important;
+  border-color: var(--mq-border) !important;
+  box-shadow: 0 8px 24px rgba(0, 107, 103, 0.06) !important;
+  backdrop-filter: blur(8px);
+}
+.mq-doctor-dashboard [class~="text-sky-50"],
+.mq-doctor-dashboard [class~="text-sky-100"],
+.mq-doctor-dashboard [class~="text-sky-200"] {
+  color: var(--mq-primary) !important;
+}
+.mq-doctor-dashboard input,
+.mq-doctor-dashboard textarea,
+.mq-doctor-dashboard select {
+  background-color: rgba(255, 255, 255, 0.88) !important;
+  color: var(--mq-text) !important;
+  border-color: var(--mq-border) !important;
+}
+.mq-doctor-dashboard input::placeholder,
+.mq-doctor-dashboard textarea::placeholder {
+  color: #829590 !important;
+}
+.mq-doctor-dashboard button:not(:disabled) {
+  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+.mq-doctor-dashboard button:focus-visible,
+.mq-doctor-dashboard select:focus-visible,
+.mq-doctor-dashboard input:focus-visible,
+.mq-doctor-dashboard textarea:focus-visible {
+  outline: 2px solid rgba(46, 187, 134, 0.4);
+  outline-offset: 2px;
+}
+
+/* Staff overview: light glass surfaces with clear, compact hierarchy. */
+.mq-staff-navigation {
+  box-shadow: 0 4px 16px rgba(0, 107, 103, 0.045);
+}
+.mq-staff-overview .bg-white {
+  background: rgba(255, 255, 255, 0.86) !important;
+  border-color: var(--mq-border) !important;
+  box-shadow: 0 6px 20px rgba(0, 107, 103, 0.055) !important;
+  backdrop-filter: blur(8px);
+}
+.mq-staff-overview input,
+.mq-staff-overview textarea,
+.mq-staff-overview select {
+  background-color: rgba(255, 255, 255, 0.88) !important;
+  color: var(--mq-text) !important;
+  border-color: var(--mq-border) !important;
+}
+.mq-staff-overview button:focus-visible,
+.mq-staff-navigation button:focus-visible {
+  outline: 2px solid rgba(46, 187, 134, 0.42);
+  outline-offset: 2px;
+}
+
 /* Print Stylesheet for Clean Hospital Slip / Token Pass */
 @media print {
   body * {

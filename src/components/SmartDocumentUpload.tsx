@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { MedicalExtractionResult } from '../types';
 import { ExtractionStatus } from './ExtractionStatus';
 
@@ -38,7 +38,25 @@ export const SmartDocumentUpload: React.FC<SmartDocumentUploadProps> = ({
   const [ocrStage, setOcrStage] = useState<string>('');
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const progIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const progIntervalRef = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (progIntervalRef.current) window.clearInterval(progIntervalRef.current);
+  }, []);
+
+  useEffect(() => {
+    if (uploadStatus !== 'analyzing') return;
+    if (ocrProgress < 25) setOcrStage('Uploading document');
+    else if (ocrProgress < 70) setOcrStage('Reading document');
+    else setOcrStage('Extracting patient details');
+  }, [ocrProgress, uploadStatus]);
+
+  const stopProgress = () => {
+    if (progIntervalRef.current) {
+      window.clearInterval(progIntervalRef.current);
+      progIntervalRef.current = null;
+    }
+  };
 
   const notify = (
     title: string,
@@ -104,6 +122,8 @@ export const SmartDocumentUpload: React.FC<SmartDocumentUploadProps> = ({
     }
 
     setUploadStatus('idle');
+    setOcrProgress(0);
+    setOcrStage('');
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -133,6 +153,7 @@ export const SmartDocumentUpload: React.FC<SmartDocumentUploadProps> = ({
   };
 
   const handleRemoveFile = () => {
+    stopProgress();
     if (previewUrl) {
       URL.revokeObjectURL(previewUrl);
     }
@@ -140,6 +161,8 @@ export const SmartDocumentUpload: React.FC<SmartDocumentUploadProps> = ({
     setPreviewUrl(null);
     setIsPdf(false);
     setUploadStatus('idle');
+    setOcrProgress(0);
+    setOcrStage('');
     setErrorMessage('');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -168,8 +191,20 @@ export const SmartDocumentUpload: React.FC<SmartDocumentUploadProps> = ({
 
     setUploadStatus('analyzing');
     setErrorMessage('');
+    setOcrProgress(8);
+    setOcrStage('Preparing document');
+    stopProgress();
+    progIntervalRef.current = window.setInterval(() => {
+      setOcrProgress((progress) => {
+        if (progress >= 92) return 92;
+        if (progress < 45) return Math.min(progress + 6, 92);
+        if (progress < 75) return Math.min(progress + 2, 92);
+        return Math.min(progress + 1, 92);
+      });
+    }, 250);
 
     try {
+      const extractionStartedAt = Date.now();
       const formData = new FormData();
       formData.append('document', selectedFile);
       formData.append('consent', 'true');
@@ -180,6 +215,10 @@ export const SmartDocumentUpload: React.FC<SmartDocumentUploadProps> = ({
       });
 
       const result = await response.json();
+      const remainingLoadingTime = 900 - (Date.now() - extractionStartedAt);
+      if (remainingLoadingTime > 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, remainingLoadingTime));
+      }
 
       if (!response.ok || !result.success) {
         throw new Error(
@@ -188,6 +227,9 @@ export const SmartDocumentUpload: React.FC<SmartDocumentUploadProps> = ({
         );
       }
 
+      stopProgress();
+      setOcrProgress(100);
+      setOcrStage('Extraction complete');
       setExtractedData(result.data);
       setUploadStatus('success');
       onExtractionSuccess(result.data);
@@ -197,6 +239,7 @@ export const SmartDocumentUpload: React.FC<SmartDocumentUploadProps> = ({
         'success'
       );
     } catch (err: any) {
+      stopProgress();
       console.warn('Document extraction failed:', err);
       let friendly = err?.message || '';
       try {
@@ -219,12 +262,14 @@ export const SmartDocumentUpload: React.FC<SmartDocumentUploadProps> = ({
       }
 
       setUploadStatus('error');
+      setOcrStage('Extraction failed');
       setErrorMessage(friendly);
       notify('Extraction Notice', friendly, 'urgent');
     }
   };
 
   const handleClearAll = () => {
+    stopProgress();
     handleRemoveFile();
     setExtractedData(null);
     onClearData();
@@ -238,37 +283,7 @@ export const SmartDocumentUpload: React.FC<SmartDocumentUploadProps> = ({
   };
 
   return (
-    <div className="bg-gradient-to-br from-sky-50/70 via-white to-slate-50 border border-sky-200/80 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
-      {/* Header Section */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-sky-500/10 text-sky-600 flex items-center justify-center shrink-0 border border-sky-500/20">
-              <i className="fa-solid fa-wand-magic-sparkles text-sm"></i>
-            </div>
-            <div>
-              <h3 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight">
-                Smart Registration
-              </h3>
-              <span className="text-[10px] uppercase font-bold tracking-wider text-sky-600 bg-sky-100/70 px-1.5 py-0.5 rounded">
-                AI Document Vision
-              </span>
-            </div>
-          </div>
-          <p className="text-xs text-slate-600">
-            Upload your prescription or health report and we'll help fill your details.
-          </p>
-        </div>
-
-        {/* Format & Size Badges */}
-        <div className="hidden sm:flex flex-col items-end gap-1 text-[11px] text-slate-500">
-          <span className="inline-flex items-center gap-1 font-medium bg-white px-2 py-0.5 rounded-md border border-slate-200">
-            <i className="fa-solid fa-file-shield text-sky-500"></i>
-            JPG, PNG, PDF
-          </span>
-          <span className="text-[10px] text-slate-400">Max size: 10 MB</span>
-        </div>
-      </div>
+    <div className="space-y-3">
 
       {/* Upload Zone / Drop Target */}
       {!selectedFile ? (
@@ -306,9 +321,10 @@ export const SmartDocumentUpload: React.FC<SmartDocumentUploadProps> = ({
             <p className="text-xs text-slate-500 mt-2 font-medium">
               or drag & drop your document here
             </p>
+            <p className="text-[11px] text-slate-500 mt-1">JPG, PNG, or PDF · Up to 10 MB</p>
           </div>
 
-          <div className="flex items-center gap-2 text-[11px] text-slate-400 pt-1">
+          <div className="hidden">
             <span>Prescription</span>
             <span>•</span>
             <span>Lab Report</span>
@@ -320,7 +336,7 @@ export const SmartDocumentUpload: React.FC<SmartDocumentUploadProps> = ({
         </div>
       ) : (
         /* Selected File Preview Card */
-        <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4 space-y-3 shadow-2xs">
+        <div className="bg-white/80 rounded-xl border border-slate-200 p-3 sm:p-4 space-y-3 shadow-2xs backdrop-blur-sm">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
               {/* Thumbnail or PDF icon */}
@@ -366,6 +382,33 @@ export const SmartDocumentUpload: React.FC<SmartDocumentUploadProps> = ({
               <i className="fa-solid fa-xmark text-sm"></i>
             </button>
           </div>
+
+          {(uploadStatus === 'analyzing' || uploadStatus === 'success') && (
+            <div className="rounded-xl border border-[#DCEBE3] bg-[#F5FAF7]/80 px-3.5 py-3" aria-live="polite">
+              <div className="mb-2 flex items-center justify-between gap-3 text-xs">
+                <span className="font-semibold text-[#173B40]">
+                  {ocrStage || 'Extracting document information'}{uploadStatus === 'analyzing' ? ' · estimated' : ''}
+                </span>
+                <span className="shrink-0 font-bold tabular-nums text-[#006B67]">{ocrProgress}%</span>
+              </div>
+              <div
+                className="h-2 overflow-hidden rounded-full bg-[#DCEBE3]"
+                role="progressbar"
+                aria-label="Estimated document extraction progress"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={ocrProgress}
+              >
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-[#006B67] to-[#2EBB86] transition-[width] duration-300 ease-out"
+                  style={{ width: `${ocrProgress}%` }}
+                />
+              </div>
+              {uploadStatus === 'analyzing' && ocrProgress >= 92 && (
+                <p className="mt-1.5 text-[11px] text-[#647875]">Still processing with the secure document service…</p>
+              )}
+            </div>
+          )}
 
           {/* Privacy & Consent Notice Checkbox */}
           {uploadStatus !== 'success' && (
@@ -445,6 +488,8 @@ export const SmartDocumentUpload: React.FC<SmartDocumentUploadProps> = ({
         onRetry={() => {
           setUploadStatus('idle');
           setErrorMessage('');
+          setOcrProgress(0);
+          setOcrStage('');
         }}
       />
     </div>

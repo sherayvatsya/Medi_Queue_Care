@@ -687,56 +687,56 @@ export const DoctorDashboard: React.FC<DoctorDashboardProps> = ({
   };
 
   return (
-    <div className="space-y-5 max-w-7xl mx-auto py-1 font-sans text-slate-800 dark:text-slate-100">
+    <div className="mq-doctor-dashboard space-y-5 max-w-7xl mx-auto py-1 font-sans text-slate-800 dark:text-slate-100">
       {/* =========================================================================
           TOP BANNER: DOCTOR IDENTITY & LIVE OP CLINICAL CONSOLE
           ========================================================================= */}
-      <div className="bg-gradient-to-r from-sky-900 via-slate-900 to-indigo-950 rounded-3xl p-5 sm:p-6 text-white shadow-xl border border-sky-500/20 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
+      <div className="bg-white/85 backdrop-blur-sm rounded-2xl p-5 sm:p-6 text-[#173B40] shadow-[0_8px_24px_rgba(0,107,103,0.07)] border border-[#DCEBE3] flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
         <div className="flex items-center gap-4">
           <div className="relative">
             <img
               src={getValidDoctorAvatar(currentDoctor.id, currentDoctor.avatar)}
               alt={currentDoctor.name}
               onError={handleDoctorImageError}
-              className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-sky-400 shadow-md"
+              className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border border-[#DCEBE3] shadow-sm"
             />
-            <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 border-2 border-slate-900 flex items-center justify-center text-[10px] text-white">
-              <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+            <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[#2EBB86] border-2 border-white flex items-center justify-center text-[10px] text-white">
+              <span className="w-2 h-2 rounded-full bg-white"></span>
             </span>
           </div>
 
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-lg sm:text-2xl font-extrabold text-white font-heading tracking-tight">
+              <h1 className="text-lg sm:text-2xl font-bold text-[#173B40] font-heading tracking-tight">
                 {currentDoctor.name}
               </h1>
-              <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-sky-500/20 border border-sky-400/40 text-sky-300">
+              <span className="text-[11px] font-semibold uppercase tracking-wide px-2.5 py-1 rounded-full bg-[#E8F8EF] border border-[#DCEBE3] text-[#006B67]">
                 Doctor Console
               </span>
-              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+              <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-[#E8F8EF] border border-[#CBE9D8] text-[#087F78] flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#2EBB86]"></span>
                 In OPD Room: {currentDoctor.roomNumber}
               </span>
             </div>
 
-            <p className="text-xs sm:text-sm text-sky-200 mt-1 font-medium">
+            <p className="text-xs sm:text-sm text-[#647875] mt-1 font-medium">
               {currentDoctor.specialty} • {currentDoctor.department} ({currentDoctor.opdBlock}, {currentDoctor.floor})
             </p>
 
-            <div className="flex items-center gap-4 mt-2 text-xs text-slate-300 flex-wrap">
+            <div className="flex items-center gap-4 mt-2 text-xs text-[#647875] flex-wrap">
               <span className="flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-sky-400" />
-                Avg. Consult: <strong className="text-white">{currentDoctor.avgConsultationTimeMin} mins</strong>
+                <Clock className="w-3.5 h-3.5 text-[#087F78]" />
+                Avg. Consult: <strong className="text-[#173B40]">{currentDoctor.avgConsultationTimeMin} mins</strong>
               </span>
               <span>•</span>
               <span className="flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                Completed Today: <strong className="text-white">{currentDoctor.todayConsultedCount + completedPatients.length}</strong>
+                <CheckCircle2 className="w-3.5 h-3.5 text-[#2EBB86]" />
+                Completed Today: <strong className="text-[#173B40]">{currentDoctor.todayConsultedCount + completedPatients.length}</strong>
               </span>
               <span>•</span>
               <span className="flex items-center gap-1.5">
-                <Activity className="w-3.5 h-3.5 text-amber-400" />
-                Waiting in Queue: <strong className="text-amber-300">{waitingPatients.length}</strong>
+                <Activity className="w-3.5 h-3.5 text-amber-500" />
+                Waiting in Queue: <strong className="text-amber-700">{waitingPatients.length}</strong>
               </span>
             </div>
           </div>
@@ -745,8 +745,8 @@ export const DoctorDashboard: React.FC<DoctorDashboardProps> = ({
         {/* Doctor Switcher & Quick Actions */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
           {/* Quick Doctor Roster Switcher (Accessible to staff or for multi-doctor demo) */}
-          <div className="bg-slate-800/80 backdrop-blur-xs rounded-2xl p-1.5 border border-slate-700">
-            <label className="block text-[10px] uppercase font-bold text-slate-400 px-2 pb-0.5">
+          <div className="bg-white/80 backdrop-blur-sm rounded-xl p-1.5 border border-[#DCEBE3]">
+            <label className="block text-[10px] uppercase font-bold text-[#647875] px-2 pb-0.5">
               Switch Doctor Roster:
             </label>
             <select
@@ -755,7 +755,7 @@ export const DoctorDashboard: React.FC<DoctorDashboardProps> = ({
                 setSelectedDoctorId(e.target.value);
                 playHospitalChime();
               }}
-              className="w-full bg-slate-900 text-white text-xs font-semibold rounded-xl px-3 py-1.5 border border-slate-700 focus:outline-hidden focus:ring-2 focus:ring-sky-500 cursor-pointer"
+              className="w-full bg-white text-[#173B40] text-xs font-semibold rounded-lg px-3 py-2 border border-[#DCEBE3] focus:outline-hidden focus:ring-2 focus:ring-[#2EBB86] cursor-pointer"
             >
               {doctors.map((doc) => (
                 <option key={doc.id} value={doc.id}>
@@ -773,10 +773,10 @@ export const DoctorDashboard: React.FC<DoctorDashboardProps> = ({
                 if (selectedPatient) fetchPatientHistory(selectedPatient.id, selectedPatient.uhid);
                 onShowToast('Synced Real-Time', 'MongoDB queue & history refreshed.', 'info');
               }}
-              className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition cursor-pointer"
+              className="p-2.5 rounded-xl bg-white hover:bg-[#E8F8EF] text-[#087F78] border border-[#DCEBE3] transition cursor-pointer"
               title="Manual Sync with MongoDB"
             >
-              <RefreshCw className="w-4 h-4 text-sky-400" />
+              <RefreshCw className="w-4 h-4 text-[#087F78]" />
             </button>
             <button
               type="button"
@@ -784,7 +784,7 @@ export const DoctorDashboard: React.FC<DoctorDashboardProps> = ({
               disabled={isCallingNext || waitingPatients.length === 0}
               className={`flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg cursor-pointer ${
                 waitingPatients.length > 0
-                  ? 'bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white shadow-sky-500/30'
+                  ? 'bg-[#087F78] hover:bg-[#006B67] text-white shadow-sm shadow-emerald-900/10'
                   : 'bg-slate-800 text-slate-400 cursor-not-allowed border border-slate-700'
               }`}
             >

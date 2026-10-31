@@ -10,27 +10,45 @@ service cloud.firestore {
       return /databases/$(database)/documents/staff/$(request.auth.uid);
     }
 
+    function staffEmailProfilePath() {
+      return /databases/$(database)/documents/staff/$(request.auth.token.email);
+    }
+
     function isStaffMember() {
       return isAuthenticated()
-        && exists(staffProfilePath())
-        && get(staffProfilePath()).data.role in ['staff', 'doctor', 'admin'];
+        && (
+          (exists(staffProfilePath())
+            && get(staffProfilePath()).data.role in ['staff', 'doctor', 'admin'])
+          || (request.auth.token.email is string
+            && exists(staffEmailProfilePath())
+            && get(staffEmailProfilePath()).data.role in ['staff', 'doctor', 'admin'])
+        );
     }
 
     function isAdmin() {
       return isAuthenticated()
-        && exists(staffProfilePath())
-        && get(staffProfilePath()).data.role == 'admin';
+        && (
+          (exists(staffProfilePath()) && get(staffProfilePath()).data.role == 'admin')
+          || (request.auth.token.email is string
+            && exists(staffEmailProfilePath())
+            && get(staffEmailProfilePath()).data.role == 'admin')
+        );
     }
 
     function isDoctor() {
       return isAuthenticated()
-        && exists(staffProfilePath())
-        && get(staffProfilePath()).data.role == 'doctor';
+        && (
+          (exists(staffProfilePath()) && get(staffProfilePath()).data.role == 'doctor')
+          || (request.auth.token.email is string
+            && exists(staffEmailProfilePath())
+            && get(staffEmailProfilePath()).data.role == 'doctor')
+        );
     }
 
     // Staff profiles are private; users may read their own profile and admins may manage the directory.
     match /staff/{staffId} {
-      allow get: if isAuthenticated() && (request.auth.uid == staffId || isAdmin());
+      allow get: if isAuthenticated()
+        && (request.auth.uid == staffId || request.auth.token.email == staffId || isAdmin());
       allow list: if isAdmin();
       allow write: if isAdmin();
     }

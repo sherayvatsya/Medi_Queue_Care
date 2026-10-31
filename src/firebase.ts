@@ -244,7 +244,16 @@ export async function authenticateStaffWithRole(
   try {
     const credential = await signInWithEmailAndPassword(auth, cleanEmail, cleanPass);
     authenticatedUid = credential.user.uid;
-    const staffSnapshot = await getDoc(doc(db, 'staff', credential.user.uid));
+    // Newer staff records may be keyed by the registered email instead of the
+    // Firebase Auth UID. Prefer the UID document, then check the matching
+    // authenticated email document for existing records created that way.
+    let staffSnapshot = await getDoc(doc(db, 'staff', credential.user.uid));
+    if (!staffSnapshot.exists() && credential.user.email) {
+      const emailKey = credential.user.email.trim().toLowerCase();
+      if (emailKey && emailKey !== credential.user.uid) {
+        staffSnapshot = await getDoc(doc(db, 'staff', emailKey));
+      }
+    }
 
     if (!staffSnapshot.exists()) {
       await fbSignOut(auth);
@@ -304,7 +313,17 @@ export async function authenticateStaffWithRole(
         console.error('Unable to sign out after staff authentication failure:', signOutError);
       });
     }
-    console.error('Staff authentication failed:', err);
+    console.error('Staff authentication failed:', {
+      code: err?.code,
+      message: err?.message,
+      projectId: firebaseProjectId,
+    });
+    if (err?.code === 'permission-denied' || err?.code === 'firestore/permission-denied') {
+      return {
+        success: false,
+        error: 'Staff sign-in was verified, but Firestore blocked the staff profile lookup. Confirm the staff document is keyed by this Firebase Auth UID or registered email, then publish the current firestore.rules to the configured Firebase project.',
+      };
+    }
     return { success: false, error: err?.message || 'Unable to authenticate staff account.' };
   }
 }

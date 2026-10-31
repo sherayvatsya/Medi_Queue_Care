@@ -167,11 +167,11 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
   };
 
   return (
-    <div className="space-y-5 max-w-7xl mx-auto py-1">
+    <div className="mq-staff-shell space-y-5 max-w-7xl mx-auto py-1">
       {/* =========================================================================
           HOSPITAL STAFF SUB-NAVIGATION TABS (Quick in-page switcher)
           ========================================================================= */}
-      <div className="bg-white rounded-2xl p-2 border border-slate-200 shadow-xs flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+      <div className="mq-staff-navigation bg-white/80 backdrop-blur-sm rounded-2xl p-2 border border-[#DCEBE3] shadow-sm flex items-center gap-1.5 overflow-x-auto scrollbar-none">
         {[
           { id: 'doctor_dashboard', label: 'Doctor Dashboard', icon: 'fa-stethoscope', badge: 'Clinical' },
           { id: 'staff_dashboard', label: 'Staff Dashboard', icon: 'fa-gauge' },
@@ -232,23 +232,23 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
           SECTION 1: STAFF DASHBOARD (Overview, Telemetry & Real-Time Summaries)
           ========================================================================= */}
       {(activeSection === 'staff_dashboard' || !activeSection) && (
-        <div className="space-y-5 animate-in fade-in duration-200">
+        <div className="mq-staff-overview space-y-5 animate-in fade-in duration-200">
           {/* Welcome & Shift Card */}
-          <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-sky-950 rounded-2xl p-5 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-md">
+          <div className="bg-white/85 backdrop-blur-sm rounded-2xl p-5 text-[#173B40] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-[0_8px_24px_rgba(0,107,103,0.07)] border border-[#DCEBE3]">
             <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-sky-500/20 border border-sky-400/30 text-sky-400 flex items-center justify-center text-xl shadow-inner shrink-0">
+              <div className="w-12 h-12 rounded-2xl bg-[#E8F8EF] border border-[#DCEBE3] text-[#087F78] flex items-center justify-center text-xl shrink-0">
                 <i className="fa-solid fa-hospital-user"></i>
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-base sm:text-lg font-extrabold text-white">
+                  <h2 className="text-base sm:text-lg font-bold text-[#173B40]">
                     {staffUser ? staffUser.name : 'Hospital Clinical Console'}
                   </h2>
-                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-1 rounded-full bg-[#E8F8EF] border border-[#CBE9D8] text-[#087F78]">
                     Live Duty
                   </span>
                 </div>
-                <p className="text-xs text-slate-300 mt-0.5">
+                <p className="text-xs text-[#647875] mt-0.5">
                   {staffUser ? `${staffUser.department} • Staff ID: ${staffUser.staffId}` : 'OPD Central Queue Authority'}
                 </p>
               </div>
@@ -258,7 +258,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
               <button
                 type="button"
                 onClick={() => onSectionChange && onSectionChange('doctor_dashboard')}
-                className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-600 hover:to-indigo-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+                className="px-3 py-1.5 rounded-xl bg-[#087F78] hover:bg-[#006B67] text-white text-xs font-semibold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
               >
                 <i className="fa-solid fa-stethoscope text-xs"></i>
                 <span>Doctor Consultation Console</span>
@@ -266,7 +266,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
               <button
                 type="button"
                 onClick={() => onSectionChange && onSectionChange('queue_management')}
-                className="px-3 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+                className="px-3 py-1.5 rounded-xl bg-[#087F78] hover:bg-[#006B67] text-white text-xs font-semibold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
               >
                 <i className="fa-solid fa-list-check text-xs"></i>
                 <span>Open Active Queue</span>
@@ -274,15 +274,15 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
               <button
                 type="button"
                 onClick={() => onSectionChange && onSectionChange('doctor_availability')}
-                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
+                className="px-3 py-1.5 rounded-xl bg-white hover:bg-[#E8F8EF] border border-[#DCEBE3] text-[#173B40] text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
               >
-                <i className="fa-solid fa-user-doctor text-xs text-sky-400"></i>
+                <i className="fa-solid fa-user-doctor text-xs text-[#087F78]"></i>
                 <span>Doctor Roster</span>
               </button>
               <button
                 type="button"
                 onClick={() => onSectionChange && onSectionChange('overcrowding_predictor')}
-                className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-700 hover:to-sky-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+                className="px-3 py-1.5 rounded-xl bg-[#E8F8EF] hover:bg-[#D9F1E3] border border-[#DCEBE3] text-[#006B67] text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
               >
                 <i className="fa-solid fa-brain text-xs"></i>
                 <span>Overcrowding Predictor</span>
@@ -1333,7 +1333,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
               <div className="text-xs text-slate-600 space-y-1 font-mono">
                 <div>Emergency: 102 / +91 11 2659 8888</div>
                 <div>OPD Desk: +91 11 2659 8800</div>
-                <div>IT & Admin: hospital@mediqueue.com</div>
+                <div>IT & Admin: admin10mediqueue@gmail.com</div>
               </div>
             </div>
           </div>

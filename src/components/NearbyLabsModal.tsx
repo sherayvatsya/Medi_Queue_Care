@@ -89,17 +89,34 @@ export const NearbyLabsModal: React.FC<NearbyLabsModalProps> = ({
     source: 'hospital',
     label: `${initialHospital.name} (Booked Hospital)`,
   }));
-  const [autoExpanded, setAutoExpanded] = useState<boolean>(false);
 
   // Filters & Controls
   const [selectedRadius, setSelectedRadius] = useState<number>(5000); // 5km default
   const [selectedCategory, setSelectedCategory] = useState<LabCategory | 'all'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [openNowOnly, setOpenNowOnly] = useState<boolean>(false);
   const [sortBy, setSortBy] = useState<'distance' | 'rating' | 'open'>('distance');
+
+  const normalizedLabSearch = searchQuery.trim().toLocaleLowerCase();
+  const showInternalLab = Boolean(
+    internalLab &&
+      (!normalizedLabSearch ||
+        [internalLab.name, internalLab.hospitalName, internalLab.locationDetails, ...internalLab.services]
+          .some((value) => value.toLocaleLowerCase().includes(normalizedLabSearch)))
+  );
 
   // Client-side filtered + sorted labs — instant, no API call needed
   const nearbyLabs = React.useMemo(() => {
     let labs = [...allFetchedLabs];
+    const query = searchQuery.trim().toLocaleLowerCase();
+
+    if (query) {
+      labs = labs.filter((lab) =>
+        [lab.name, lab.shortName, lab.address, lab.city, ...lab.services]
+          .filter((value): value is string => Boolean(value))
+          .some((value) => value.toLocaleLowerCase().includes(query))
+      );
+    }
 
     // Category filter
     if (selectedCategory !== 'all') {
@@ -137,7 +154,7 @@ export const NearbyLabsModal: React.FC<NearbyLabsModalProps> = ({
     }
 
     return labs;
-  }, [allFetchedLabs, selectedCategory, openNowOnly, sortBy]);
+  }, [allFetchedLabs, searchQuery, selectedCategory, openNowOnly, sortBy]);
 
   // Selected Lab for Detailed Modal Popup
   const [selectedLabDetails, setSelectedLabDetails] = useState<
@@ -286,7 +303,6 @@ export const NearbyLabsModal: React.FC<NearbyLabsModalProps> = ({
         setAllFetchedLabs(data.nearbyLabs);
       }
       if (data.searchCenter) setSearchCenter(data.searchCenter);
-      setAutoExpanded(Boolean(data.autoExpandedRadius));
     } catch (err: any) {
       // Silently ignore aborted requests — a newer fetch is already in progress
       if (err?.name === 'AbortError') return;
@@ -682,11 +698,6 @@ export const NearbyLabsModal: React.FC<NearbyLabsModalProps> = ({
             { id: 'all', label: 'All Services', icon: 'fa-layer-group' },
             { id: 'pathology', label: 'Pathology', icon: 'fa-microscope' },
             { id: 'blood_test', label: 'Blood Test', icon: 'fa-vial' },
-            { id: 'radiology', label: 'Radiology', icon: 'fa-x-ray' },
-            { id: 'xray', label: 'X-Ray', icon: 'fa-film' },
-            { id: 'ultrasound', label: 'Ultrasound', icon: 'fa-wave-square' },
-            { id: 'ct_scan', label: 'CT Scan', icon: 'fa-circle-notch' },
-            { id: 'mri', label: 'MRI', icon: 'fa-magnet' },
           ].map((cat) => {
             // Count matching labs for each category to show badge
             const count = cat.id === 'all'
@@ -730,6 +741,21 @@ export const NearbyLabsModal: React.FC<NearbyLabsModalProps> = ({
             );
           })}
 
+          <label className="sr-only" htmlFor="nearby-labs-more-services">More services</label>
+          <select
+            id="nearby-labs-more-services"
+            value={['all', 'pathology', 'blood_test'].includes(selectedCategory) ? '' : selectedCategory}
+            onChange={(event) => setSelectedCategory((event.target.value || 'all') as LabCategory | 'all')}
+            className="px-3 py-1.5 rounded-full bg-white text-slate-700 border border-slate-200 text-xs font-semibold cursor-pointer focus:outline-none focus:ring-2 focus:ring-sky-200"
+          >
+            <option value="">More services</option>
+            <option value="radiology">Radiology</option>
+            <option value="xray">X-Ray</option>
+            <option value="ultrasound">Ultrasound</option>
+            <option value="ct_scan">CT Scan</option>
+            <option value="mri">MRI</option>
+          </select>
+
           {/* Open Now Toggle Chip */}
           <button
             type="button"
@@ -753,6 +779,30 @@ export const NearbyLabsModal: React.FC<NearbyLabsModalProps> = ({
           </button>
         </div>
 
+        <div className="px-4 sm:px-6 py-3 border-b border-slate-200 bg-white">
+          <label className="relative block max-w-xl">
+            <span className="sr-only">Search nearby laboratories or services</span>
+            <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true"></i>
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search labs, tests, or services"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-10 text-sm text-slate-800 placeholder:text-slate-400 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-100"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                aria-label="Clear lab search"
+              >
+                <i className="fa-solid fa-xmark" aria-hidden="true"></i>
+              </button>
+            )}
+          </label>
+        </div>
+
         {/* 6. MAIN BODY: SPLIT VIEW (MAP + LABS LIST) */}
         <div className="flex-1 flex overflow-hidden relative">
           {/* LEFT COLUMN: LABORATORIES DIRECTORY LIST */}
@@ -761,16 +811,8 @@ export const NearbyLabsModal: React.FC<NearbyLabsModalProps> = ({
               activeTab === 'map' ? 'hidden lg:flex' : 'flex'
             }`}
           >
-            {/* Auto-expansion Banner if triggered */}
-            {autoExpanded && (
-              <div className="p-3 rounded-xl bg-sky-50 border border-sky-200 text-xs text-sky-900 flex items-center gap-2">
-                <i className="fa-solid fa-arrows-maximize text-sky-600 shrink-0"></i>
-                <span>No labs found within 5 km. Automatically expanded search radius to 10 km.</span>
-              </div>
-            )}
-
             {/* SECTION 1: PRIORITY HOSPITAL INTERNAL LABORATORY */}
-            {internalLab && (
+            {showInternalLab && internalLab && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-black uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
@@ -854,13 +896,13 @@ export const NearbyLabsModal: React.FC<NearbyLabsModalProps> = ({
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
                   <i className="fa-solid fa-map-location-dot text-slate-400"></i>
-                  <span>🧪 NEARBY LABS ({nearbyLabs.length}{(selectedCategory !== 'all' || openNowOnly) && !isLoading ? ` of ${allFetchedLabs.length}` : ''})</span>
+                  <span>🧪 NEARBY LABS ({nearbyLabs.length}{(selectedCategory !== 'all' || openNowOnly || searchQuery.trim()) && !isLoading ? ` of ${allFetchedLabs.length}` : ''})</span>
                 </h3>
                 <div className="flex items-center gap-2">
-                  {(selectedCategory !== 'all' || openNowOnly) && !isLoading && (
+                  {(selectedCategory !== 'all' || openNowOnly || searchQuery.trim()) && !isLoading && (
                     <button
                       type="button"
-                      onClick={() => { setSelectedCategory('all'); setOpenNowOnly(false); playHospitalChime(); }}
+                      onClick={() => { setSelectedCategory('all'); setOpenNowOnly(false); setSearchQuery(''); playHospitalChime(); }}
                       className="text-[10px] font-bold text-sky-600 hover:text-sky-800 underline cursor-pointer flex items-center gap-0.5"
                     >
                       <i className="fa-solid fa-xmark text-[9px]"></i> Clear
@@ -947,11 +989,13 @@ export const NearbyLabsModal: React.FC<NearbyLabsModalProps> = ({
                   </div>
                   <h4 className="font-semibold text-slate-800 text-sm">No labs match this filter</h4>
                   <p className="text-xs text-slate-500">
-                    {allFetchedLabs.length} lab{allFetchedLabs.length > 1 ? 's' : ''} found nearby, but none match the selected category.
+                    {searchQuery.trim()
+                      ? `No labs match “${searchQuery.trim()}” and the selected filters.`
+                      : `${allFetchedLabs.length} lab${allFetchedLabs.length > 1 ? 's' : ''} found nearby, but none match the selected filters.`}
                   </p>
                   <button
                     type="button"
-                    onClick={() => { setSelectedCategory('all'); setOpenNowOnly(false); playHospitalChime(); }}
+                    onClick={() => { setSelectedCategory('all'); setOpenNowOnly(false); setSearchQuery(''); playHospitalChime(); }}
                     className="mt-1 px-4 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs transition cursor-pointer"
                   >
                     Show All Labs

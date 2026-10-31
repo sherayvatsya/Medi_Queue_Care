@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Search,
   Bell,
   ChevronDown,
   User,
-  ShieldCheck,
   LogOut,
   Stethoscope,
 } from 'lucide-react';
@@ -25,9 +23,6 @@ interface HeaderProps {
   onOpenPatientProfile?: () => void;
   onOpenMedicalFile?: () => void;
   onOpenPatientAuth?: () => void;
-  onOpenHospitalLogin?: () => void;
-  onOpenDoctorLogin?: () => void;
-  onOpenAdminLogin?: () => void;
   onSignOut?: () => void;
 }
 
@@ -44,15 +39,10 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenPatientProfile,
   onOpenMedicalFile,
   onOpenPatientAuth,
-  onOpenHospitalLogin,
-  onOpenDoctorLogin,
-  onOpenAdminLogin,
   onSignOut,
 }) => {
-  const [showSearchModal, setShowSearchModal] = useState<boolean>(false);
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState<boolean>(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState<boolean>(false);
-  const [searchQuery, setSearchQuery] = useState<string>('');
 
   const dropdownRef = useRef<HTMLDivElement | null>(null);
 
@@ -133,46 +123,8 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         )}
 
-        {/* DIRECT ACCESS: Doctor & Admin Portal Buttons */}
-        {!isStaff && (
-          <div className="hidden sm:flex items-center gap-2" data-portal-buttons="true">
-            <button
-              type="button"
-              onClick={() => {
-                if (onOpenDoctorLogin) onOpenDoctorLogin();
-                else window.location.hash = '#doctor-login';
-              }}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/55 hover:bg-[#E8F8EF]/90 dark:bg-[#1B302D]/60 dark:hover:bg-[#23413B]/80 text-[#006B67] dark:text-[#66D4A5] border border-[#DCEBE3] dark:border-[#31534B] backdrop-blur-sm transition flex items-center gap-1.5 cursor-pointer shadow-[0_2px_8px_rgba(0,107,103,0.04)]"
-            >
-              <Stethoscope className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
-              <span>Doctor Login</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (onOpenAdminLogin) onOpenAdminLogin();
-                else window.location.hash = '#admin-login';
-              }}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/55 hover:bg-[#E8F8EF]/90 dark:bg-[#1B302D]/60 dark:hover:bg-[#23413B]/80 text-[#006B67] dark:text-[#66D4A5] border border-[#DCEBE3] dark:border-[#31534B] backdrop-blur-sm transition flex items-center gap-1.5 cursor-pointer shadow-[0_2px_8px_rgba(0,107,103,0.04)]"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-              <span>Admin Login</span>
-            </button>
-          </div>
-        )}
-
-        {/* RIGHT ACTIONS: Search, Notifications, Profile Avatar & Theme Toggle */}
+        {/* RIGHT ACTIONS: Notifications and Profile */}
         <div className="flex items-center gap-2 sm:gap-3" ref={dropdownRef}>
-          {/* Search Trigger */}
-          <button
-            type="button"
-            onClick={() => setShowSearchModal(!showSearchModal)}
-            className="w-9 h-9 rounded-xl border border-[#DCEBE3] dark:border-[#31534B] bg-white/55 dark:bg-[#1B302D]/60 backdrop-blur-sm hover:bg-[#E8F8EF]/85 dark:hover:bg-[#23413B]/80 text-[#647875] dark:text-[#A8BDB6] hover:text-[#006B67] dark:hover:text-white flex items-center justify-center transition cursor-pointer shadow-[0_2px_8px_rgba(0,107,103,0.04)]"
-            title="Search Doctors, Labs, or OPD Services"
-          >
-            <Search className="w-4 h-4" />
-          </button>
-
           {/* Notifications Bell with Badge */}
           <div className="relative">
             <button
@@ -271,45 +223,6 @@ export const Header: React.FC<HeaderProps> = ({
                       <span>Edit Patient Profile</span>
                     </button>
                   )}
-                  {onOpenDoctorLogin && !isStaff && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowProfileDropdown(false);
-                        onOpenDoctorLogin();
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-teal-700 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/40 rounded-xl cursor-pointer font-semibold"
-                    >
-                      <Stethoscope className="w-3.5 h-3.5 text-teal-600" />
-                      <span>Doctor Clinical Login</span>
-                    </button>
-                  )}
-                  {onOpenAdminLogin && !isStaff && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowProfileDropdown(false);
-                        onOpenAdminLogin();
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-indigo-700 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-xl cursor-pointer font-semibold"
-                    >
-                      <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
-                      <span>Hospital Admin Login</span>
-                    </button>
-                  )}
-                  {onOpenHospitalLogin && !onOpenDoctorLogin && !isStaff && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowProfileDropdown(false);
-                        onOpenHospitalLogin();
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#334155] dark:text-[#94A3B8] hover:bg-[#F6F9FC] dark:hover:bg-[#172033] hover:text-[#087FC9] rounded-xl cursor-pointer"
-                    >
-                      <ShieldCheck className="w-3.5 h-3.5 text-sky-500" />
-                      <span>Hospital Staff Portal</span>
-                    </button>
-                  )}
                   {isStaff && onStaffSectionChange && (
                     <button
                       type="button"
@@ -343,29 +256,6 @@ export const Header: React.FC<HeaderProps> = ({
 
         </div>
       </div>
-
-      {/* Instant Search Bar Overlay */}
-      {showSearchModal && (
-        <div className="pt-2.5 pb-1 max-w-xl mx-auto animate-in slide-in-from-top-2 duration-150">
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#64748B]" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search doctors (e.g. Dr. Arvind Sharma), department (Orthopedics), or labs..."
-              className="w-full pl-10 pr-10 py-2 rounded-xl bg-[#F6F9FC] dark:bg-[#172033] border border-[#E5EDF5] dark:border-[#1E293B] text-xs text-[#13213A] dark:text-white placeholder-[#64748B] focus:outline-hidden focus:ring-2 focus:ring-[#087FC9]/30"
-              autoFocus
-            />
-            <button
-              onClick={() => setShowSearchModal(false)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#64748B] hover:text-[#13213A] cursor-pointer"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-      )}
     </header>
   );
 };

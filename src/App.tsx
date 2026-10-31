@@ -115,6 +115,7 @@ export default function App() {
     return 'dashboard';
   });
   const [showSupportModal, setShowSupportModal] = useState<boolean>(false);
+  const [shouldOpenPatientRegistration, setShouldOpenPatientRegistration] = useState<boolean>(false);
   const [showAppMedicalFileModal, setShowAppMedicalFileModal] = useState<boolean>(() => {
     return false;
   });
@@ -1216,20 +1217,6 @@ export default function App() {
           handlePatientNavChange('medical_file');
         }}
         onOpenPatientAuth={() => setShowGlobalAuthModal(true)}
-        onOpenHospitalLogin={() => {
-          setIsAdminLoginOpen(true);
-          updateUrlHash('admin-login');
-        }}
-        onOpenDoctorLogin={() => {
-          setIsDoctorLoginOpen(true);
-          setIsAdminLoginOpen(false);
-          updateUrlHash('doctor-login');
-        }}
-        onOpenAdminLogin={() => {
-          setIsAdminLoginOpen(true);
-          setIsDoctorLoginOpen(false);
-          updateUrlHash('admin-login');
-        }}
         onSignOut={handleLogout}
       />
 
@@ -1289,6 +1276,8 @@ export default function App() {
                   onShowToast={showToast}
                   onRequestTeleconsult={() => handlePatientNavChange('teleconsult')}
                   onOpenHospitalMap={() => handlePatientNavChange('hospital_map')}
+                  startRegistration={shouldOpenPatientRegistration}
+                  onConsumeRegistrationRequest={() => setShouldOpenPatientRegistration(false)}
                 />
               ) : patientNavView === 'patient_pass' ? (
                 <PatientPass
@@ -1297,6 +1286,7 @@ export default function App() {
                   doctors={doctors}
                   onUpdatePatient={handleUpdatePatient}
                   onRegisterToken={() => {
+                    setShouldOpenPatientRegistration(true);
                     setActiveSidebarTab('dashboard');
                     handlePatientNavChange('dashboard');
                   }}
@@ -1320,6 +1310,7 @@ export default function App() {
                     handlePatientNavChange('patient_pass');
                   }}
                   onBookAppointment={() => {
+                    setShouldOpenPatientRegistration(true);
                     setActiveSidebarTab('dashboard');
                     handlePatientNavChange('dashboard');
                   }}
@@ -1502,35 +1493,6 @@ export default function App() {
                 ? (userRole === 'doctor' ? 'Doctor Clinical Session' : 'Hospital Admin Session')
                 : 'Patient Portal Mode'}
             </span>
-            <span>•</span>
-            {userRole === 'patient' && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsDoctorLoginOpen(true);
-                    updateUrlHash('doctor-login');
-                  }}
-                  className="text-teal-600 hover:underline font-semibold cursor-pointer flex items-center gap-1"
-                >
-                  <i className="fa-solid fa-user-doctor text-[10px]"></i>
-                  <span>Doctor Login</span>
-                </button>
-                <span>•</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsAdminLoginOpen(true);
-                    updateUrlHash('admin-login');
-                  }}
-                  className="text-[#087FC9] hover:underline font-semibold cursor-pointer flex items-center gap-1"
-                >
-                  <i className="fa-solid fa-shield-halved text-[10px]"></i>
-                  <span>Admin Login</span>
-                </button>
-                <span>•</span>
-              </>
-            )}
             <span>ICMR Clinical Board Verified</span>
           </div>
         </div>

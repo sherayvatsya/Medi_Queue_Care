@@ -8,7 +8,6 @@ import {
   Shield,
   Lock,
   ArrowLeft,
-  HelpCircle,
   Activity,
   Users,
   FileText,
@@ -36,7 +35,6 @@ export const HospitalLogin: React.FC<HospitalLoginProps> = ({
   onLoginSuccess,
   onCancel,
   onShowToast,
-  onOpenSupportModal,
 }) => {
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
@@ -106,58 +104,14 @@ export const HospitalLogin: React.FC<HospitalLoginProps> = ({
   };
 
   return (
-    <div
-      className="min-h-screen text-[#173B40] dark:text-[#F1F5F9] flex flex-col font-sans transition-colors duration-200 relative overflow-x-hidden selection:bg-[#2EBB86]/20 selection:text-[#006B67] bg-[#F5FAF7] bg-no-repeat"
-    >
-      {/* TOP HEADER: Translucent Glassmorphic Bar */}
-      <header className="w-full h-16 sm:h-20 border-b border-emerald-100 bg-white/90 backdrop-blur-md px-4 sm:px-8 lg:px-12 flex items-center justify-between sticky top-0 z-30 transition-colors duration-200">
-        {/* Left: Brand Logo & Tagline */}
-        <div className="flex items-center gap-3">
-          <img src="/mediqueue-logo.png" alt="" className="h-11 w-11 rounded-xl object-cover" />
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xl sm:text-2xl font-extrabold text-[#173B40] tracking-tight font-heading">
-                Medi Queue
-              </span>
-              <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#E8F8EF] text-[#006B67] border border-[#E0EBE5]">
-                <ShieldCheck className="w-3 h-3 text-[#087F78]" />
-                Hospital Staff Portal
-              </span>
-            </div>
-            <p className="text-[11px] sm:text-xs text-[#647875] font-medium hidden sm:block">
-              Smarter Hospitals. Shorter Queues.
-            </p>
-          </div>
-        </div>
-
-        {/* Right: Actions */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold text-[#173B40] hover:bg-[#E8F8EF] border border-[#E0EBE5] transition flex items-center gap-1.5 cursor-pointer"
-          >
-            <ArrowLeft className="w-4 h-4 text-[#087F78]" />
-            <span className="hidden sm:inline">Return to Patient Portal</span>
-            <span className="sm:hidden">Patient Portal</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              if (onOpenSupportModal) onOpenSupportModal();
-              else onShowToast('Hospital IT Support', 'Internal IT desk extension: 4401 or call toll-free 1800-420-MEDI.', 'info');
-            }}
-            className="px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-white hover:bg-[#E8F8EF] text-[#173B40] border border-[#E0EBE5] transition flex items-center gap-1.5 cursor-pointer"
-          >
-            <HelpCircle className="w-4 h-4" />
-            <span className="hidden sm:inline">Help & Support</span>
-          </button>
-        </div>
-      </header>
-
+    <div className="min-h-screen text-[#173B40] dark:text-[#F1F5F9] flex flex-col font-sans transition-colors duration-200 relative overflow-x-hidden selection:bg-[#2EBB86]/20 selection:text-[#006B67] bg-[radial-gradient(ellipse_at_top,_rgba(46,187,134,0.08),_transparent_52%),#F5FAF7] bg-no-repeat">
+      <img
+        src="/mediqueue-logo.png"
+        alt="Medi Queue"
+        className="pointer-events-none absolute left-3 top-3 z-20 h-[23.78vw] w-[23.78vw] select-none object-contain sm:left-4 sm:top-4 sm:h-[min(160px,20vw)] sm:w-[min(160px,20vw)]"
+      />
       {/* MAIN CONTENT AREA */}
-      <main className="relative z-10 flex-1 w-full max-w-[1480px] mx-auto px-4 sm:px-6 lg:px-10 py-6 sm:py-8 lg:py-10 flex items-center justify-center gap-8 lg:gap-14">
+      <main className="relative z-10 flex-1 w-full min-h-[100svh] max-w-[1480px] mx-auto px-4 sm:px-6 lg:px-10 py-6 sm:py-8 flex items-center justify-center">
         {/* Left Column: Hospital Clinical Highlights (Visible on Desktop) */}
         <div className="hidden">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-500/20 border border-cyan-400/30 text-cyan-200 text-xs font-bold uppercase tracking-wider backdrop-blur-md w-fit">
@@ -224,27 +178,27 @@ export const HospitalLogin: React.FC<HospitalLoginProps> = ({
         </div>
 
         {/* Right Column: Staff Authentication Card */}
-        <div className="w-full flex justify-center lg:justify-end animate-in fade-in zoom-in-95 duration-200">
-          <div className="w-full sm:w-[min(92vw,480px)] lg:w-[440px] xl:w-[470px] bg-white/95 dark:bg-[#0F172A]/95 backdrop-blur-xl rounded-[24px] border border-white/70 dark:border-white/10 shadow-[0_28px_80px_rgba(3,24,50,0.38)] overflow-hidden transition-all duration-300">
+        <div className="w-full flex justify-center animate-in fade-in zoom-in-95 duration-300">
+          <div className="w-full sm:w-[min(92vw,480px)] lg:w-[440px] xl:w-[470px] bg-white/70 dark:bg-[#162927]/72 backdrop-blur-xl rounded-[24px] border border-white/85 dark:border-[#284440]/80 shadow-[0_24px_70px_rgba(0,107,103,0.14)] overflow-hidden transition-all duration-300">
             {/* Top Hospital Badge Header */}
-            <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-sky-950 p-6 text-white text-center relative border-b border-white/10">
-              <div className="w-14 h-14 rounded-2xl bg-sky-500/20 border border-sky-400/30 text-sky-300 flex items-center justify-center text-2xl mx-auto mb-3 shadow-inner">
+            <div className="bg-white/42 dark:bg-[#1B302D]/50 backdrop-blur-lg p-6 text-[#173B40] dark:text-white text-center relative border-b border-[#DCEBE3]/90 dark:border-[#284440]">
+              <div className="w-14 h-14 rounded-2xl bg-[#E8F8EF]/90 dark:bg-[#087F78]/25 border border-[#BFE8D1] dark:border-[#31534B] text-[#006B67] dark:text-[#66D4A5] flex items-center justify-center text-2xl mx-auto mb-3 shadow-sm">
                 <i className="fa-solid fa-hospital-user"></i>
               </div>
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-500/20 border border-sky-400/30 text-sky-300 text-[10px] font-bold uppercase tracking-wider mb-2">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#E8F8EF]/80 dark:bg-[#087F78]/20 border border-[#BFE8D1] dark:border-[#31534B] text-[#087F78] dark:text-[#66D4A5] text-[10px] font-bold uppercase tracking-wider mb-2">
                 <i className="fa-solid fa-lock text-[9px]"></i>
                 <span>Authorized Personnel Only</span>
               </div>
-              <h2 className="text-xl font-black text-white tracking-tight font-heading">
+              <h2 className="text-xl font-black text-[#173B40] dark:text-white tracking-tight font-heading">
                 Hospital Staff & Admin Portal
               </h2>
-              <p className="text-xs text-slate-300 mt-1 max-w-xs mx-auto">
+              <p className="text-xs text-[#647875] dark:text-[#A8BDB6] mt-1 max-w-xs mx-auto">
                 Secure clinical authentication for doctors, triage officers, and hospital administration.
               </p>
             </div>
 
             {/* Login Form Body */}
-            <div className="p-6 sm:p-7 space-y-4">
+            <div className="p-6 sm:p-7 space-y-3">
               {errorMessage && (
                 <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300 text-xs flex items-start gap-2.5 animate-in shake duration-200">
                   <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
@@ -252,11 +206,11 @@ export const HospitalLogin: React.FC<HospitalLoginProps> = ({
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5 flex items-center justify-between">
                     <span>Hospital Email Address</span>
-                    <span className="text-[11px] text-slate-400 dark:text-slate-500 font-normal">@mediqueue.com</span>
+                    <span className="text-[11px] text-slate-400 dark:text-slate-500 font-normal">Use your registered staff email</span>
                   </label>
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500 text-xs">
@@ -270,7 +224,7 @@ export const HospitalLogin: React.FC<HospitalLoginProps> = ({
                         setEmail(e.target.value);
                         if (errorMessage) setErrorMessage('');
                       }}
-                      placeholder="hospital@mediqueue.com"
+                      placeholder="admin10mediqueue@gmail.com"
                       className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-xs sm:text-sm text-slate-900 dark:text-white bg-white dark:bg-[#162238] placeholder:text-slate-400 focus:outline-hidden focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition"
                       autoComplete="email"
                     />
@@ -322,11 +276,11 @@ export const HospitalLogin: React.FC<HospitalLoginProps> = ({
                   </div>
                 </div>
 
-                <div className="pt-2">
+                <div>
                   <button
                     type="submit"
                     disabled={isLoading}
-                    className="w-full py-3 rounded-xl bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-700 hover:to-sky-600 text-white font-bold text-xs sm:text-sm shadow-md hover:shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60 active:scale-[0.99]"
+                    className="w-full py-3 rounded-xl bg-[#006B67] hover:bg-[#087F78] text-white font-bold text-xs sm:text-sm shadow-md shadow-[#006B67]/15 hover:shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60 active:scale-[0.99]"
                   >
                     {isLoading ? (
                       <>
@@ -440,7 +394,7 @@ export const HospitalLogin: React.FC<HospitalLoginProps> = ({
                     required
                     value={recoveryEmail}
                     onChange={(e) => setRecoveryEmail(e.target.value)}
-                    placeholder="hospital@mediqueue.com"
+                    placeholder="admin10mediqueue@gmail.com"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#162238] text-xs text-slate-900 dark:text-white focus:outline-hidden focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
                   />
                 </div>
