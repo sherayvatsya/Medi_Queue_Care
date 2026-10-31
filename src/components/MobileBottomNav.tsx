@@ -11,7 +11,6 @@ import { PatientNavView } from './Header';
 interface MobileBottomNavProps {
   currentView: PatientNavView;
   onNavigate: (view: PatientNavView) => void;
-  onOpenLabs: () => void;
   onOpenProfile: () => void;
   activeTokenNumber?: string;
 }
@@ -19,20 +18,19 @@ interface MobileBottomNavProps {
 export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   currentView,
   onNavigate,
-  onOpenLabs,
   onOpenProfile,
   activeTokenNumber,
 }) => {
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#111827]/95 backdrop-blur-md border-t border-[#E5EDF5] dark:border-[#1E293B] px-3 py-2 flex items-center justify-around shadow-lg">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/78 dark:bg-[#162927]/84 backdrop-blur-xl border-t border-[#DCEBE3]/90 dark:border-[#284440] px-3 py-2 flex items-center justify-around shadow-[0_-6px_22px_rgba(0,107,103,0.07)]">
       {/* 1. Dashboard / Home */}
       <button
         type="button"
         onClick={() => onNavigate('dashboard')}
         className={`flex flex-col items-center gap-0.5 text-[10px] font-semibold transition ${
           currentView === 'dashboard'
-            ? 'text-[#087FC9] dark:text-[#38BDF8] font-bold'
-            : 'text-[#64748B] dark:text-[#94A3B8]'
+            ? 'text-[#006B67] dark:text-[#66D4A5] font-bold'
+            : 'text-[#647875] dark:text-[#A8BDB6]'
         }`}
       >
         <LayoutDashboard className="w-4 h-4" />
@@ -45,11 +43,11 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         onClick={() => onNavigate('patient_pass')}
         className={`flex flex-col items-center gap-0.5 text-[10px] font-semibold relative -top-3 ${
           currentView === 'patient_pass'
-            ? 'text-[#087FC9] dark:text-[#38BDF8] font-bold'
-            : 'text-[#087FC9] dark:text-[#38BDF8]'
+            ? 'text-[#006B67] dark:text-[#66D4A5] font-bold'
+            : 'text-[#087F78] dark:text-[#66D4A5]'
         }`}
       >
-        <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-[#087FC9] to-[#00A3FF] text-white flex flex-col items-center justify-center shadow-md shadow-[#087FC9]/30">
+        <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-[#006B67] to-[#2EBB86] text-white flex flex-col items-center justify-center shadow-sm">
           <Ticket className="w-4 h-4" />
           {activeTokenNumber && (
             <span className="text-[9px] font-black font-mono leading-none mt-0.5">
@@ -63,8 +61,12 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       {/* 3. Nearby Labs */}
       <button
         type="button"
-        onClick={onOpenLabs}
-        className="flex flex-col items-center gap-0.5 text-[10px] font-semibold text-[#8B5CF6] dark:text-[#C084FC]"
+        onClick={() => onNavigate('nearby_labs')}
+        className={`flex flex-col items-center gap-0.5 text-[10px] font-semibold transition ${
+          currentView === 'nearby_labs'
+            ? 'text-[#006B67] dark:text-[#66D4A5] font-bold'
+            : 'text-[#647875] dark:text-[#A8BDB6]'
+        }`}
       >
         <FlaskConical className="w-4 h-4" />
         <span>Labs</span>
@@ -76,8 +78,8 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         onClick={() => onNavigate('teleconsult')}
         className={`flex flex-col items-center gap-0.5 text-[10px] font-semibold transition ${
           currentView === 'teleconsult'
-            ? 'text-[#087FC9] dark:text-[#38BDF8] font-bold'
-            : 'text-[#64748B] dark:text-[#94A3B8]'
+            ? 'text-[#006B67] dark:text-[#66D4A5] font-bold'
+            : 'text-[#647875] dark:text-[#A8BDB6]'
         }`}
       >
         <Video className="w-4 h-4" />
@@ -88,7 +90,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       <button
         type="button"
         onClick={onOpenProfile}
-        className="flex flex-col items-center gap-0.5 text-[10px] font-semibold text-[#64748B] dark:text-[#94A3B8]"
+        className="flex flex-col items-center gap-0.5 text-[10px] font-semibold text-[#647875] dark:text-[#A8BDB6]"
       >
         <User className="w-4 h-4" />
         <span>Profile</span>

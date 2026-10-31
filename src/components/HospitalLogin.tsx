@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { StaffUser } from '../types';
 import { playHospitalChime } from '../utils/audio';
 import { authenticateStaffWithRole, sendStaffPasswordResetEmail } from '../firebase';
-import hospitalQueueBg from '../../assets/hospital-queue-bg.png';
 import {
   HeartPulse,
   ShieldCheck,
@@ -108,32 +107,24 @@ export const HospitalLogin: React.FC<HospitalLoginProps> = ({
 
   return (
     <div
-      className="min-h-screen text-[#14213D] dark:text-[#F1F5F9] flex flex-col font-sans transition-colors duration-200 relative overflow-x-hidden selection:bg-[#0B9FE3]/20 selection:text-[#0B9FE3] bg-[#07152E] bg-cover bg-center bg-no-repeat"
-      style={{ backgroundImage: `url(${hospitalQueueBg})` }}
+      className="min-h-screen text-[#173B40] dark:text-[#F1F5F9] flex flex-col font-sans transition-colors duration-200 relative overflow-x-hidden selection:bg-[#2EBB86]/20 selection:text-[#006B67] bg-[#F5FAF7] bg-no-repeat"
     >
-      {/* Background Gradient Overlays - Identical to normal user login (PatientAuth) */}
-      <div className="absolute inset-0 bg-linear-to-br from-[#07152E]/85 via-[#0B5E97]/42 to-[#07152E]/58 pointer-events-none"></div>
-      <div className="absolute inset-0 bg-linear-to-r from-[#07152E]/52 via-[#07152E]/16 to-[#07152E]/48 pointer-events-none"></div>
-      <div className="absolute inset-x-0 bottom-0 h-1/2 bg-linear-to-t from-[#07152E]/82 via-[#07152E]/30 to-transparent pointer-events-none"></div>
-
       {/* TOP HEADER: Translucent Glassmorphic Bar */}
-      <header className="w-full h-16 sm:h-20 border-b border-white/15 bg-white/5 backdrop-blur-md px-4 sm:px-8 lg:px-12 flex items-center justify-between sticky top-0 z-30 transition-colors duration-200">
+      <header className="w-full h-16 sm:h-20 border-b border-emerald-100 bg-white/90 backdrop-blur-md px-4 sm:px-8 lg:px-12 flex items-center justify-between sticky top-0 z-30 transition-colors duration-200">
         {/* Left: Brand Logo & Tagline */}
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center text-white shadow-md shadow-[#0B9FE3]/20 ring-1 ring-white/25 backdrop-blur-md">
-            <HeartPulse className="w-5 h-5 animate-pulse text-[#38BDF8]" />
-          </div>
+          <img src="/mediqueue-logo.png" alt="" className="h-11 w-11 rounded-xl object-cover" />
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xl sm:text-2xl font-extrabold text-white tracking-tight drop-shadow-sm font-heading">
+              <span className="text-xl sm:text-2xl font-extrabold text-[#173B40] tracking-tight font-heading">
                 Medi Queue
               </span>
-              <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white/16 text-cyan-50 border border-white/20 backdrop-blur-md">
-                <ShieldCheck className="w-3 h-3 text-cyan-300" />
+              <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#E8F8EF] text-[#006B67] border border-[#E0EBE5]">
+                <ShieldCheck className="w-3 h-3 text-[#087F78]" />
                 Hospital Staff Portal
               </span>
             </div>
-            <p className="text-[11px] sm:text-xs text-cyan-50/85 font-medium hidden sm:block">
+            <p className="text-[11px] sm:text-xs text-[#647875] font-medium hidden sm:block">
               Smarter Hospitals. Shorter Queues.
             </p>
           </div>
@@ -144,9 +135,9 @@ export const HospitalLogin: React.FC<HospitalLoginProps> = ({
           <button
             type="button"
             onClick={onCancel}
-            className="px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold text-white hover:bg-white/12 border border-white/15 hover:border-white/30 transition flex items-center gap-1.5 cursor-pointer shadow-2xs hover:shadow-xs backdrop-blur-md"
+            className="px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold text-[#173B40] hover:bg-[#E8F8EF] border border-[#E0EBE5] transition flex items-center gap-1.5 cursor-pointer"
           >
-            <ArrowLeft className="w-4 h-4 text-cyan-100" />
+            <ArrowLeft className="w-4 h-4 text-[#087F78]" />
             <span className="hidden sm:inline">Return to Patient Portal</span>
             <span className="sm:hidden">Patient Portal</span>
           </button>
@@ -157,7 +148,7 @@ export const HospitalLogin: React.FC<HospitalLoginProps> = ({
               if (onOpenSupportModal) onOpenSupportModal();
               else onShowToast('Hospital IT Support', 'Internal IT desk extension: 4401 or call toll-free 1800-420-MEDI.', 'info');
             }}
-            className="px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-white/14 hover:bg-white/22 text-white border border-white/18 hover:border-white/30 transition flex items-center gap-1.5 cursor-pointer shadow-2xs hover:shadow-xs backdrop-blur-md"
+            className="px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-white hover:bg-[#E8F8EF] text-[#173B40] border border-[#E0EBE5] transition flex items-center gap-1.5 cursor-pointer"
           >
             <HelpCircle className="w-4 h-4" />
             <span className="hidden sm:inline">Help & Support</span>
@@ -166,9 +157,9 @@ export const HospitalLogin: React.FC<HospitalLoginProps> = ({
       </header>
 
       {/* MAIN CONTENT AREA */}
-      <main className="relative z-10 flex-1 w-full max-w-[1480px] mx-auto px-4 sm:px-6 lg:px-10 py-6 sm:py-8 lg:py-10 flex items-center justify-center lg:justify-between gap-8 lg:gap-14">
+      <main className="relative z-10 flex-1 w-full max-w-[1480px] mx-auto px-4 sm:px-6 lg:px-10 py-6 sm:py-8 lg:py-10 flex items-center justify-center gap-8 lg:gap-14">
         {/* Left Column: Hospital Clinical Highlights (Visible on Desktop) */}
-        <div className="hidden lg:flex flex-col justify-center max-w-xl text-white space-y-6 pr-4">
+        <div className="hidden">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-500/20 border border-cyan-400/30 text-cyan-200 text-xs font-bold uppercase tracking-wider backdrop-blur-md w-fit">
             <Lock className="w-3.5 h-3.5 text-cyan-300" />
             <span>Authorized Clinical Personnel Gateway</span>

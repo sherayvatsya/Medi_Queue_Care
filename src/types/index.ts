@@ -97,6 +97,8 @@ export interface PatientUser {
   medications?: string[];
   diagnoses?: string[];
   extractedDocumentType?: string;
+  initialSymptoms?: string;
+  symptomDuration?: string;
 }
 
 export type DocumentType =

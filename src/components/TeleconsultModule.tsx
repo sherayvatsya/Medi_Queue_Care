@@ -676,39 +676,7 @@ export const TeleconsultModule: React.FC<TeleconsultModuleProps> = ({
   const doctorSlots = DOCTOR_TIME_SLOTS[selectedDoctor?.id] || DEFAULT_SLOTS;
 
   return (
-    <div className="space-y-4">
-      {/* Top Teleconsult Header Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-4 sm:p-6 rounded-2xl border border-slate-700 shadow-md relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-sky-500/10 rounded-full blur-3xl pointer-events-none"></div>
-
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 relative z-10">
-          <div>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-sky-500/20 border border-sky-500/40 text-sky-300 text-[10px] font-bold uppercase tracking-wider mb-2">
-              <span className="w-2 h-2 rounded-full bg-sky-400 animate-ping"></span>
-              24/7 Virtual OPD Tele-Consultation
-            </div>
-            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
-              Consult Top Specialists from Home
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-xl">
-              Zero hospital wait times. Browse available specialists and slots freely. Sign in before booking to secure your appointment.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {onBookInPersonInstead && (
-              <button
-                type="button"
-                onClick={onBookInPersonInstead}
-                className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold border border-white/20 transition cursor-pointer flex items-center gap-1.5"
-              >
-                <i className="fa-solid fa-hospital-user text-sky-400"></i>
-                <span>Switch to In-Hospital Queue</span>
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
+    <div className="space-y-5">
 
       {/* VIEW 1: LIVE SIMULATED VIDEO CALL SCREEN */}
       {isInCall ? (
@@ -1891,19 +1859,14 @@ export const TeleconsultModule: React.FC<TeleconsultModuleProps> = ({
         </div>
       ) : (
         /* VIEW 7: DEFAULT DOCTOR ROSTER & SLOT BROWSER */
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
           {/* Doctor Selection (2 cols) */}
-          <div className="lg:col-span-2 space-y-3.5">
+          <div className="space-y-4">
             {/* Header & Date Selector */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
-                <h3 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
-                  <i className="fa-solid fa-user-doctor text-sky-500"></i>
-                  <span>Available Tele-Consultation Specialists & Slots</span>
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Select your preferred doctor, date, and consultation time slot below.
-                </p>
+                <h3 className="text-base font-bold text-slate-900">Choose a date</h3>
+                <p className="mt-1 text-sm text-slate-500">Appointments available over the next three days.</p>
               </div>
 
               {/* Date Pills */}
@@ -1926,6 +1889,10 @@ export const TeleconsultModule: React.FC<TeleconsultModuleProps> = ({
             </div>
 
             {/* Doctors Grid with Interactive Slots */}
+            <div className="mb-3">
+              <h3 className="text-base font-bold text-slate-900">Choose a doctor and time</h3>
+              <p className="mt-1 text-sm text-slate-500">Select an available time to update your booking summary.</p>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               {doctors.map((doc) => {
                 const isSelected = selectedDoctor.id === doc.id;
@@ -1934,10 +1901,10 @@ export const TeleconsultModule: React.FC<TeleconsultModuleProps> = ({
                 return (
                   <div
                     key={doc.id}
-                    className={`p-4 rounded-2xl border transition-all text-left flex flex-col justify-between ${
+                    className={`p-4 rounded-2xl border bg-white transition-all text-left flex flex-col justify-between ${
                       isSelected
-                        ? 'border-2 border-sky-500 bg-sky-50/40 shadow-sm'
-                        : 'border-slate-200 bg-white hover:border-slate-300'
+                        ? 'border-sky-400 ring-2 ring-sky-100'
+                        : 'border-slate-200 hover:border-slate-300'
                     }`}
                   >
                     <div>
@@ -1963,24 +1930,25 @@ export const TeleconsultModule: React.FC<TeleconsultModuleProps> = ({
 
                       {/* Available Slots Pills */}
                       <div className="mt-3 pt-2.5 border-t border-slate-100">
-                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1.5">
-                          Available Slots ({selectedDate.split(',')[0]}):
+                        <span className="text-xs font-semibold text-slate-600 block mb-2">
+                          Available times
                         </span>
-                        <div className="grid grid-cols-2 gap-1.5">
+                        <div className="flex flex-wrap gap-2">
                           {slots.slice(0, 4).map((s) => {
                             const isSlotActive = isSelected && selectedSlot === s;
                             return (
                               <button
                                 key={s}
                                 type="button"
+                                aria-pressed={isSlotActive}
                                 onClick={() => {
                                   handleSelectDoctor(doc);
                                   setSelectedSlot(s);
                                 }}
-                                className={`px-2 py-1 rounded-lg text-[11px] font-mono font-medium transition text-center cursor-pointer ${
+                                className={`px-3 py-2 rounded-lg border text-xs font-semibold transition text-center cursor-pointer ${
                                   isSlotActive
-                                    ? 'bg-sky-500 text-white font-bold shadow-xs'
-                                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                                    ? 'border-sky-600 bg-sky-600 text-white'
+                                    : 'border-slate-200 bg-slate-50 hover:border-sky-300 hover:bg-sky-50 text-slate-700'
                                 }`}
                               >
                                 {s.split('-')[0].trim()}
@@ -1991,24 +1959,7 @@ export const TeleconsultModule: React.FC<TeleconsultModuleProps> = ({
                       </div>
                     </div>
 
-                    {/* Book Button */}
-                    <div className="mt-3.5 pt-2 border-t border-slate-100 flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-900">
-                        From <span className="text-sky-600 font-extrabold">₹299</span>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleInitiateBooking(doc)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                          isSelected
-                            ? 'bg-sky-500 hover:bg-sky-600 text-white shadow-xs'
-                            : 'bg-slate-900 hover:bg-slate-800 text-white'
-                        }`}
-                      >
-                        <i className="fa-solid fa-calendar-check"></i>
-                        <span>Book Slot</span>
-                      </button>
-                    </div>
+                    <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-500">Consultation from <strong className="text-slate-800">₹299</strong></p>
                   </div>
                 );
               })}
@@ -2016,18 +1967,10 @@ export const TeleconsultModule: React.FC<TeleconsultModuleProps> = ({
           </div>
 
           {/* Right Side: Quick Booking Card & Security Assurance (1 col) */}
-          <div className="space-y-4">
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-md p-4 sm:p-5 space-y-4">
-              <div className="border-b border-slate-200 pb-3">
-                <span className="badge badge-sky text-[10px] mb-1">
-                  <i className="fa-solid fa-bolt mr-1"></i> Fast Digital Booking
-                </span>
-                <h4 className="font-extrabold text-sm sm:text-base text-slate-900">
-                  Ready to Consult?
-                </h4>
-                <p className="text-xs text-slate-500">
-                  {currentUser ? `Signed in as ${currentUser.name}` : 'Sign in/Sign up required before payment'}
-                </p>
+          <aside className="h-fit space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 lg:sticky lg:top-24">
+            <div className="space-y-1 border-b border-slate-100 pb-3">
+                <h4 className="font-bold text-base text-slate-900">Review your selection</h4>
+                <p className="text-sm text-slate-500">Confirm these details before continuing.</p>
               </div>
 
               {/* Doctor Details */}
@@ -2064,28 +2007,14 @@ export const TeleconsultModule: React.FC<TeleconsultModuleProps> = ({
               <button
                 type="button"
                 onClick={() => handleInitiateBooking(selectedDoctor)}
-                className="w-full py-3 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs sm:text-sm font-bold transition shadow-md cursor-pointer flex items-center justify-center gap-2"
+                className="w-full py-3 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-sm font-bold transition cursor-pointer flex items-center justify-center gap-2"
               >
                 <i className="fa-solid fa-calendar-check"></i>
-                <span>{currentUser ? 'Review & Proceed to Pay' : 'Book Slot (Sign in)'}</span>
+                <span>{currentUser ? 'Continue to review' : 'Sign in to continue'}</span>
               </button>
 
-              <div className="space-y-2 pt-2 border-t border-slate-100 text-[11px] text-slate-600">
-                <div className="flex items-center gap-2">
-                  <i className="fa-solid fa-check text-emerald-500 text-xs"></i>
-                  <span>Encrypted 1080p HD Video & Audio Room</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <i className="fa-solid fa-check text-emerald-500 text-xs"></i>
-                  <span>Official Hospital Digital E-Prescription</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <i className="fa-solid fa-check text-emerald-500 text-xs"></i>
-                  <span>256-bit Encrypted Secure Payment Gateway</span>
-                </div>
-              </div>
-            </div>
-          </div>
+              <p className="text-center text-xs text-slate-500">You can review the appointment before payment.</p>
+          </aside>
         </div>
       )}
 

@@ -3,7 +3,6 @@ import confetti from 'canvas-confetti';
 import { Doctor, Patient, PreTestItem, PatientType, PatientUser, WheelchairRequest } from '../types';
 import { SYMPTOMS_LIST, LAB_LOCATION_DEFAULT, generateAlphanumericUHID } from '../data/mockData';
 import { REAL_HOSPITALS_NETWORK } from '../data/hospitalsData';
-import { WayfindingMap } from './WayfindingMap';
 import { PatientAuth } from './PatientAuth';
 import { OTPAuthModal } from './OTPAuthModal';
 import { EditProfileModal } from './EditProfileModal';
@@ -14,7 +13,6 @@ import { validatePhoneNumber } from '../utils/phoneValidation';
 import { BookingConfirmationModal } from './BookingConfirmationModal';
 import { NearbyLabsModal } from './NearbyLabsModal';
 import { MedicalFileModal } from './MedicalFileModal';
-import { VoiceIntake } from './VoiceIntake';
 import {
   Building2,
   ChevronRight,
@@ -45,8 +43,6 @@ import {
   AlertTriangle,
   Stethoscope,
   Activity,
-  Mic,
-  FileText,
 } from 'lucide-react';
 
 interface PatientPortalProps {
@@ -95,7 +91,6 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
   }, [currentPatient]);
 
   // Form State initialized from currentUser if present - default to 'new' (General Medicine)
-  const [intakeMode, setIntakeMode] = useState<'typed' | 'voice'>('voice');
   const [selectedHospitalId, setSelectedHospitalId] = useState<string>(
     currentPatient?.hospitalId || 'hosp-max-mohali'
   );
@@ -415,17 +410,13 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
   const containerContent = (
     <div className="max-w-[1440px] mx-auto w-full px-3 sm:px-6 py-4 sm:py-6 space-y-6 box-border">
       {/* 1. TOP PATIENT PROFILE CARD (Matching Google Stitch Reference) */}
-      <div className="card-healthcare p-5 sm:p-7 bg-white dark:bg-[#111827] relative overflow-hidden">
-        {/* Subtle background hospital architecture watermark */}
-        <div className="absolute right-0 top-0 bottom-0 w-2/5 opacity-[0.04] dark:opacity-[0.03] pointer-events-none flex items-center justify-end overflow-hidden pr-6">
-          <Building2 className="w-72 h-72 text-[#087FC9]" />
-        </div>
+      <div className="card-healthcare border-white/80 bg-white/80 p-5 shadow-[0_8px_28px_rgba(0,107,103,0.055)] backdrop-blur-sm sm:p-7 dark:bg-[#162927]/85 relative overflow-hidden">
 
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 relative z-10">
           {/* Left Column: Avatar & Patient Identity */}
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 text-center sm:text-left">
             {/* Circular Avatar */}
-            <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-[#38BDF8] to-[#087FC9] text-white flex items-center justify-center font-heading font-extrabold text-2xl shadow-md shrink-0">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#006B67] to-[#2EBB86] text-white flex items-center justify-center font-heading font-bold text-xl shadow-sm shrink-0">
               {currentUser ? currentUser.name.charAt(0) : 'R'}
             </div>
 
@@ -435,15 +426,15 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                   {currentUser ? currentUser.name : patientName}
                 </h2>
                 {currentUser ? (
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EBF5FB] dark:bg-[#082F49] text-[#087FC9] dark:text-[#38BDF8] border border-[#BAE6FD] dark:border-[#0284C7] text-xs font-mono font-bold shadow-2xs">
-                    <span className="text-[9px] font-sans font-extrabold uppercase px-1.5 py-0.2 bg-[#087FC9] text-white rounded-full">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#E8F8EF] dark:bg-[#1B302D] text-[#006B67] dark:text-[#66D4A5] border border-[#DCEBE3] dark:border-[#284440] text-xs font-mono font-semibold">
+                    <span className="text-[9px] font-sans font-bold uppercase px-1.5 py-0.2 bg-[#006B67] text-white rounded-full">
                       UHID
                     </span>
                     <span>{currentUser.uhid}</span>
                     <button
                       type="button"
                       onClick={() => handleCopyUHID(currentUser.uhid)}
-                      className="text-[#087FC9] dark:text-[#38BDF8] hover:text-[#0B5E97] cursor-pointer ml-0.5"
+                      className="text-[#087F78] dark:text-[#66D4A5] hover:text-[#006B67] cursor-pointer ml-0.5"
                       title="Click to copy Official Hospital UHID"
                     >
                       {copiedId ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
@@ -462,29 +453,6 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                   : `${patientAge} years • ${patientGender} • ${patientPhone}`}
               </p>
 
-              {/* 4 Information Chips Row */}
-              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-1.5">
-                {/* Blood Group */}
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900 text-xs font-semibold">
-                  <Droplets className="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
-                  <span>{currentUser?.bloodGroup || 'B+'} Blood Group</span>
-                </span>
-                {/* Age */}
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-900 text-xs font-semibold">
-                  <Calendar className="w-3.5 h-3.5 text-sky-500" />
-                  <span>{currentUser?.age || patientAge} years Age</span>
-                </span>
-                {/* Gender */}
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-cyan-50 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-900 text-xs font-semibold">
-                  <User className="w-3.5 h-3.5 text-cyan-500" />
-                  <span>{currentUser?.gender || patientGender} Gender</span>
-                </span>
-                {/* Mobile */}
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-900 text-xs font-semibold">
-                  <Phone className="w-3.5 h-3.5 text-teal-500" />
-                  <span>{currentUser?.phone || patientPhone} Mobile</span>
-                </span>
-              </div>
             </div>
           </div>
 
@@ -495,18 +463,18 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowMedicalFileModal(true)}
-                  className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-white dark:bg-[#111827] hover:bg-[#F6F9FC] dark:hover:bg-[#172033] text-[#13213A] dark:text-white border border-[#E5EDF5] dark:border-[#1E293B] text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer shadow-2xs whitespace-nowrap"
+                  className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-white/75 dark:bg-[#162927] hover:bg-[#E8F8EF] dark:hover:bg-[#1B302D] text-[#173B40] dark:text-white border border-[#DCEBE3] dark:border-[#284440] text-xs font-medium flex items-center justify-center gap-2 transition cursor-pointer whitespace-nowrap"
                 >
-                  <FolderKanban className="w-4 h-4 text-[#087FC9]" />
+                  <FolderKanban className="w-4 h-4 text-[#087F78]" />
                   <span>Medical File</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowEditProfileModal(true)}
-                  className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-white dark:bg-[#111827] hover:bg-[#F6F9FC] dark:hover:bg-[#172033] text-[#13213A] dark:text-white border border-[#E5EDF5] dark:border-[#1E293B] text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer shadow-2xs whitespace-nowrap"
+                  className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-white/75 dark:bg-[#162927] hover:bg-[#E8F8EF] dark:hover:bg-[#1B302D] text-[#173B40] dark:text-white border border-[#DCEBE3] dark:border-[#284440] text-xs font-medium flex items-center justify-center gap-2 transition cursor-pointer whitespace-nowrap"
                   title="Edit personal details, age, blood group, allergies, and emergency contacts"
                 >
-                  <Edit3 className="w-4 h-4 text-[#087FC9]" />
+                  <Edit3 className="w-4 h-4 text-[#087F78]" />
                   <span>Edit Details</span>
                 </button>
               </>
@@ -525,7 +493,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
               <button
                 type="button"
                 onClick={onRequestTeleconsult}
-                className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-[#087FC9] hover:bg-[#0B5E97] text-white text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer shadow-sm whitespace-nowrap"
+                className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-[#006B67] hover:bg-[#087F78] text-white text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer whitespace-nowrap"
               >
                 <Video className="w-4 h-4" />
                 <span>Virtual OPD</span>
@@ -535,59 +503,8 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
         </div>
       </div>
 
-      {/* INTAKE MODE SELECTOR (Voice vs Typed) */}
-      {currentStep !== 'token_active' && (
-        <div className="flex items-center justify-between p-1.5 bg-slate-100 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-2xl mb-2 shadow-2xs">
-          <button
-            type="button"
-            onClick={() => {
-              setIntakeMode('voice');
-              playHospitalChime();
-            }}
-            className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
-              intakeMode === 'voice'
-                ? 'bg-white dark:bg-neutral-800 text-[#087FC9] dark:text-sky-400 shadow-sm border border-slate-200 dark:border-neutral-700'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <Mic className="w-4 h-4 text-[#087FC9]" />
-            <span>🎙️ Voice Registration (Hindi / English / Punjabi)</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setIntakeMode('typed');
-              playHospitalChime();
-            }}
-            className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
-              intakeMode === 'typed'
-                ? 'bg-white dark:bg-neutral-800 text-[#087FC9] dark:text-sky-400 shadow-sm border border-slate-200 dark:border-neutral-700'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <FileText className="w-4 h-4 text-[#087FC9]" />
-            <span>📋 Standard Form Registration</span>
-          </button>
-        </div>
-      )}
-
-      {/* VOICE INTAKE COMPONENT */}
-      {currentStep !== 'token_active' && intakeMode === 'voice' && (
-        <VoiceIntake
-          doctors={doctors}
-          currentUser={currentUser}
-          onGenerateToken={(patient) => {
-            onGenerateToken(patient);
-            setCurrentStep('token_active');
-            setLatestBookedPatient(patient);
-          }}
-          onFallbackToTyped={() => setIntakeMode('typed')}
-          onShowToast={notify}
-        />
-      )}
-
       {/* STEP 1: APPOINTMENT TYPE SELECTION */}
-      {currentStep !== 'token_active' && intakeMode === 'typed' && currentStep === 'type_selection' && (
+      {currentStep !== 'token_active' && currentStep === 'type_selection' && (
         <div className="space-y-6">
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-6 md:p-8 space-y-6">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
@@ -763,7 +680,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
       )}
 
       {/* STEP 2: AI PRE-CONSULTATION TRIAGE FLOW */}
-      {currentStep !== 'token_active' && intakeMode === 'typed' && currentStep === 'triage' && (
+      {currentStep !== 'token_active' && currentStep === 'triage' && (
         <div className="space-y-6">
           {/* Step Bar & Switcher Tabs */}
           <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-sm space-y-4">
@@ -1579,23 +1496,16 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
             {/* LEFT COLUMN: ~65% (lg:col-span-7) */}
             <div className="lg:col-span-7 space-y-6">
               {/* 1. LIVE QUEUE CARD (The Visual Centerpiece) */}
-              <div className="relative rounded-2xl bg-gradient-to-br from-[#087FC9] via-[#096DB0] to-[#04598F] text-white p-5 sm:p-7 shadow-xl overflow-hidden space-y-4">
+              <div className="relative rounded-2xl border border-[#CBE9D8] bg-white/75 text-[#173B40] p-5 sm:p-7 shadow-[0_10px_32px_rgba(0,107,103,0.07)] backdrop-blur-sm overflow-hidden space-y-4">
                 {/* Background Hospital Waiting Room Texture Overlay */}
-                <div
-                  className="absolute inset-0 bg-cover bg-center opacity-15 mix-blend-overlay pointer-events-none"
-                  style={{
-                    backgroundImage: `url('https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=1200&auto=format&fit=crop&q=80')`,
-                  }}
-                />
-
                 {/* Card Header: ● LIVE QUEUE and Last updated */}
                 <div className="flex items-center justify-between relative z-10">
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-xs font-extrabold uppercase tracking-wider text-white shadow-2xs">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#16B981] live-indicator"></span>
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 text-xs font-bold uppercase tracking-wider text-emerald-800 border border-emerald-100">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 live-indicator"></span>
                     <span>LIVE QUEUE</span>
                   </div>
 
-                  <div className="flex items-center gap-2 text-xs text-white/80">
+                  <div className="flex items-center gap-2 text-xs text-slate-500">
                     <span className="text-[11px]">Last updated 10:42 AM</span>
                     <button
                       type="button"
@@ -1605,7 +1515,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                         notify('Queue Telemetry Refreshed', 'Real-time telemetry synced with hospital server.', 'info');
                         setTimeout(() => setIsRefreshingQueue(false), 700);
                       }}
-                      className="w-7 h-7 rounded-lg bg-white/15 hover:bg-white/25 flex items-center justify-center cursor-pointer transition text-white shadow-2xs"
+                      className="w-8 h-8 rounded-lg border border-emerald-100 bg-white hover:bg-emerald-50 flex items-center justify-center cursor-pointer transition text-emerald-800"
                       title="Refresh live queue status"
                     >
                       <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingQueue ? 'animate-spin' : ''}`} />
@@ -1615,76 +1525,53 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
 
                 {/* Hospital and Department Breadcrumb */}
                 <div className="flex items-center gap-3 relative z-10 pt-1">
-                  <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 shadow-2xs">
-                    <Building2 className="w-5 h-5 text-white" />
+                  <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+                    <Building2 className="w-5 h-5 text-emerald-800" />
                   </div>
                   <div className="min-w-0">
-                    <div className="flex items-center gap-1 font-heading font-extrabold text-sm text-white truncate">
+                    <div className="flex items-center gap-1 font-heading font-extrabold text-sm text-[#153B3A] truncate">
                       <span>{currentPatient.hospitalName || 'Max Super Specialty Hospital, Mohali'}</span>
-                      <ChevronRight className="w-4 h-4 text-white/60 shrink-0" />
+                      <ChevronRight className="w-4 h-4 text-emerald-600 shrink-0" />
                     </div>
-                    <div className="flex items-center gap-1 text-xs text-white/80 truncate">
+                    <div className="flex items-center gap-1 text-xs text-slate-600 truncate">
                       <span>{currentPatient.department} • {currentPatient.opdBlock} | {currentPatient.floor} | {activeRoom}</span>
-                      <ChevronRight className="w-3.5 h-3.5 text-white/60 shrink-0" />
+                      <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                     </div>
                   </div>
                 </div>
 
                 {/* Center Token Display */}
                 <div className="text-center py-2 relative z-10">
-                  <span className="text-[11px] font-bold uppercase tracking-widest text-sky-100/90 block">
+                    <span className="text-[11px] font-bold uppercase tracking-widest text-emerald-800 block">
                     YOUR TOKEN
                   </span>
-                  <div className="token-clamp font-heading font-black tracking-tight text-white drop-shadow-md my-1">
+                  <div className="token-clamp font-heading font-black tracking-tight text-[#075E55] my-1">
                     {currentPatient.tokenNumber}
                   </div>
                 </div>
 
                 {/* 3 Metrics Row */}
-                <div className="grid grid-cols-3 gap-2 text-center relative z-10 py-1.5 border-t border-b border-white/20">
+                <div className="grid grid-cols-3 gap-2 text-center relative z-10 py-1.5 border-t border-b border-emerald-100">
                   <div className="p-2">
-                    <div className="flex items-center justify-center gap-1.5 text-white/90 text-xs">
-                      <Users className="w-3.5 h-3.5" />
+                    <div className="flex items-center justify-center gap-1.5 text-[#153B3A] text-xs">
+                      <Users className="w-3.5 h-3.5 text-emerald-700" />
                       <span className="font-heading font-extrabold text-base">{currentPatient.queuePosition}</span>
                     </div>
-                    <span className="text-[10px] text-white/80 block">Patients Ahead</span>
+                    <span className="text-[10px] text-slate-500 block">Patients Ahead</span>
                   </div>
-                  <div className="p-2 border-x border-white/20">
-                    <div className="flex items-center justify-center gap-1.5 text-white/90 text-xs">
-                      <Clock className="w-3.5 h-3.5" />
+                  <div className="p-2 border-x border-emerald-100">
+                    <div className="flex items-center justify-center gap-1.5 text-[#153B3A] text-xs">
+                      <Clock className="w-3.5 h-3.5 text-emerald-700" />
                       <span className="font-heading font-extrabold text-base">~{currentPatient.estimatedWaitMinutes} mins</span>
                     </div>
-                    <span className="text-[10px] text-white/80 block">Estimated Wait</span>
+                    <span className="text-[10px] text-slate-500 block">Estimated Wait</span>
                   </div>
                   <div className="p-2">
-                    <div className="flex items-center justify-center gap-1.5 text-white/90 text-xs">
-                      <Radio className="w-3.5 h-3.5 text-emerald-300" />
+                    <div className="flex items-center justify-center gap-1.5 text-[#153B3A] text-xs">
+                      <Radio className="w-3.5 h-3.5 text-emerald-700" />
                       <span className="font-heading font-extrabold text-base">Live</span>
                     </div>
-                    <span className="text-[10px] text-white/80 block">Queue Active</span>
-                  </div>
-                </div>
-
-                {/* Visual Queue Progress Indicator */}
-                <div className="relative z-10 pt-2 px-1">
-                  <div className="flex items-center justify-between text-[11px] text-white/90 mb-2">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-4 h-4 rounded-full bg-[#16B981] flex items-center justify-center text-[10px] font-bold">✓</span>
-                      <span>Completed 12</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 font-bold">
-                      <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping"></span>
-                      <span>You {currentPatient.tokenNumber}</span>
-                    </div>
-                    <div className="text-white/70">
-                      <span>Remaining 25+</span>
-                    </div>
-                  </div>
-                  {/* Visual Step Progress Line */}
-                  <div className="w-full h-1.5 rounded-full bg-white/25 overflow-hidden flex">
-                    <div className="w-2/5 h-full bg-[#16B981]"></div>
-                    <div className="w-1/5 h-full bg-white animate-pulse"></div>
-                    <div className="w-2/5 h-full bg-white/20"></div>
+                    <span className="text-[10px] text-slate-500 block">Queue Active</span>
                   </div>
                 </div>
 
@@ -1693,7 +1580,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                   <button
                     type="button"
                     onClick={() => announceTokenVoice(currentPatient.tokenNumber, activeRoom, liveDoctor?.name || currentPatient.doctorName)}
-                    className="w-full sm:w-auto px-6 py-2.5 rounded-full bg-white/20 hover:bg-white/30 text-white text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer backdrop-blur-md shadow-2xs"
+                    className="w-full sm:w-auto px-6 py-2.5 rounded-full border border-emerald-200 bg-white hover:bg-emerald-50 text-emerald-800 text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer"
                   >
                     <Volume2 className="w-4 h-4" />
                     <span>Listen to Audio Call</span>
@@ -1785,14 +1672,6 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                       Recent Activity
                     </h3>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowMedicalFileModal(true)}
-                    className="text-xs text-[#087FC9] hover:underline font-semibold flex items-center gap-1 cursor-pointer"
-                  >
-                    <span>View All</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
                 </div>
 
                 <div className="space-y-3">
@@ -1866,11 +1745,11 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
             {/* RIGHT COLUMN: ~35% (lg:col-span-5) */}
             <div className="lg:col-span-5 space-y-6">
               {/* 1. TODAY'S APPOINTMENT CARD */}
-              <div className="card-healthcare p-5 bg-white dark:bg-[#111827] space-y-4">
+              <div className="card-healthcare border-white/80 bg-white/75 p-5 shadow-[0_8px_28px_rgba(0,107,103,0.05)] backdrop-blur-sm dark:bg-[#162927]/85 space-y-4">
                 {/* Header */}
                 <div className="flex items-center justify-between pb-3 border-b border-[#E5EDF5] dark:border-[#1E293B]">
                   <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-[#087FC9]" />
+                    <Calendar className="w-4 h-4 text-emerald-700" />
                     <h3 className="font-heading font-extrabold text-sm text-[#13213A] dark:text-white">
                       Today's Appointment
                     </h3>
@@ -1881,7 +1760,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                 </div>
 
                 {/* Hospital Row with Thumbnail */}
-                <div className="p-3 rounded-2xl bg-[#F6F9FC] dark:bg-[#172033] flex items-center gap-3">
+                <div className="p-3 rounded-xl border border-[#E0EBE5]/80 bg-white/65 dark:bg-[#1B302D]/75 flex items-center gap-3">
                   <img
                     src="https://images.unsplash.com/photo-1587351021759-3e566b6af7cc?w=200&auto=format&fit=crop&q=80"
                     alt="Hospital Exterior"
@@ -1899,7 +1778,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                 </div>
 
                 {/* Doctor Row with Avatar */}
-                <div className="p-3 rounded-2xl bg-[#F6F9FC] dark:bg-[#172033] flex items-center gap-3">
+                <div className="p-3 rounded-xl border border-[#E0EBE5]/80 bg-white/65 dark:bg-[#1B302D]/75 flex items-center gap-3">
                   <img
                     src={getValidDoctorAvatar(liveDoctor?.id || 'doc-1', liveDoctor?.avatar)}
                     alt="Doctor Avatar"
@@ -1910,7 +1789,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                     <p className="text-xs font-bold text-[#13213A] dark:text-white truncate">
                       {liveDoctor?.name || 'Dr. Arvind Sharma, MD'}
                     </p>
-                    <p className="text-[11px] text-[#087FC9] font-medium truncate">
+                    <p className="text-[11px] text-emerald-700 font-medium truncate">
                       {currentPatient.department || 'Orthopedics'}
                     </p>
                     <p className="text-[10px] text-[#64748B] truncate">Consultant • 12 years exp.</p>
@@ -1920,27 +1799,27 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
 
                 {/* 4 Fields Grid */}
                 <div className="grid grid-cols-2 gap-2.5 pt-1 text-xs">
-                  <div className="p-2.5 rounded-xl border border-[#E5EDF5] dark:border-[#1E293B]">
+                  <div className="p-2.5 rounded-xl border border-[#E0EBE5] bg-white/55 dark:border-[#284440] dark:bg-[#1B302D]/60">
                     <span className="text-[10px] text-[#64748B] flex items-center gap-1 mb-0.5">
-                      <Calendar className="w-3 h-3 text-[#087FC9]" /> Date
+                      <Calendar className="w-3 h-3 text-emerald-700" /> Date
                     </span>
                     <span className="font-bold text-[#13213A] dark:text-white">10 Oct 2026</span>
                   </div>
-                  <div className="p-2.5 rounded-xl border border-[#E5EDF5] dark:border-[#1E293B]">
+                  <div className="p-2.5 rounded-xl border border-[#E0EBE5] bg-white/55 dark:border-[#284440] dark:bg-[#1B302D]/60">
                     <span className="text-[10px] text-[#64748B] flex items-center gap-1 mb-0.5">
-                      <Clock className="w-3 h-3 text-[#087FC9]" /> Time
+                      <Clock className="w-3 h-3 text-emerald-700" /> Time
                     </span>
                     <span className="font-bold text-[#13213A] dark:text-white">10:30 AM</span>
                   </div>
-                  <div className="p-2.5 rounded-xl border border-[#E5EDF5] dark:border-[#1E293B]">
+                  <div className="p-2.5 rounded-xl border border-[#E0EBE5] bg-white/55 dark:border-[#284440] dark:bg-[#1B302D]/60">
                     <span className="text-[10px] text-[#64748B] flex items-center gap-1 mb-0.5">
-                      <Activity className="w-3 h-3 text-[#087FC9]" /> Department
+                      <Activity className="w-3 h-3 text-emerald-700" /> Department
                     </span>
                     <span className="font-bold text-[#13213A] dark:text-white truncate block">{currentPatient.department}</span>
                   </div>
-                  <div className="p-2.5 rounded-xl border border-[#E5EDF5] dark:border-[#1E293B]">
+                  <div className="p-2.5 rounded-xl border border-[#E0EBE5] bg-white/55 dark:border-[#284440] dark:bg-[#1B302D]/60">
                     <span className="text-[10px] text-[#64748B] flex items-center gap-1 mb-0.5">
-                      <MapPin className="w-3 h-3 text-[#087FC9]" /> Location
+                      <MapPin className="w-3 h-3 text-emerald-700" /> Location
                     </span>
                     <span className="font-bold text-[#13213A] dark:text-white truncate block">{currentPatient.opdBlock} | {currentPatient.floor}</span>
                   </div>
@@ -1951,17 +1830,17 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                   <button
                     type="button"
                     onClick={() => setShowSlipModal(true)}
-                    className="p-2.5 rounded-xl bg-[#F6F9FC] dark:bg-[#172033] hover:bg-[#EBF5FB] border border-[#E5EDF5] dark:border-[#1E293B] text-xs font-semibold text-[#13213A] dark:text-white flex items-center justify-center gap-1.5 transition cursor-pointer"
+                    className="p-2.5 rounded-xl bg-white/65 dark:bg-[#1B302D]/75 hover:bg-[#E8F8EF] border border-[#DCEBE3] dark:border-[#284440] text-xs font-medium text-[#173B40] dark:text-white flex items-center justify-center gap-1.5 transition cursor-pointer"
                     title="Print or view digital hospital pass"
                   >
-                    <Printer className="w-3.5 h-3.5 text-[#087FC9]" />
+                    <Printer className="w-3.5 h-3.5 text-emerald-700" />
                     <span>Digital Pass</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={handleSendSMS}
-                    className="p-2.5 rounded-xl bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 border border-sky-200 dark:border-sky-900 text-xs font-semibold text-[#087FC9] dark:text-[#38BDF8] flex items-center justify-center gap-1.5 transition cursor-pointer"
+                    className="p-2.5 rounded-xl bg-[#E8F8EF]/80 dark:bg-[#1B302D] hover:bg-[#D9F1E3] border border-[#CBE9D8] dark:border-[#284440] text-xs font-medium text-[#006B67] dark:text-[#66D4A5] flex items-center justify-center gap-1.5 transition cursor-pointer"
                     title="Send live tracking SMS link to phone"
                   >
                     <Send className="w-3.5 h-3.5" />
@@ -1974,7 +1853,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                       setShowNearbyLabsModal(true);
                       playHospitalChime();
                     }}
-                    className="p-2.5 rounded-xl bg-[#F3E8FF] dark:bg-[#2E1065] hover:bg-[#EDE9FE] border border-[#DDD6FE] dark:border-[#581C87] text-xs font-bold text-[#7C3AED] dark:text-[#C084FC] flex items-center justify-center gap-1.5 transition cursor-pointer shadow-2xs"
+                    className="p-2.5 rounded-xl bg-[#E8F8EF]/80 dark:bg-[#1B302D] hover:bg-[#D9F1E3] border border-[#CBE9D8] dark:border-[#284440] text-xs font-medium text-[#006B67] dark:text-[#66D4A5] flex items-center justify-center gap-1.5 transition cursor-pointer"
                     title="Find nearby pathology labs, diagnostics & scans"
                   >
                     <FlaskConical className="w-3.5 h-3.5" />
@@ -1988,7 +1867,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                 {/* Header */}
                 <div className="flex items-center justify-between pb-2 border-b border-[#E5EDF5] dark:border-[#1E293B]">
                   <div className="flex items-center gap-2">
-                    <FlaskConical className="w-4 h-4 text-[#8B5CF6]" />
+                    <FlaskConical className="w-4 h-4 text-emerald-700" />
                     <h3 className="font-heading font-extrabold text-sm text-[#13213A] dark:text-white">
                       Nearby Labs & Diagnostic Centers
                     </h3>
@@ -2167,17 +2046,6 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
             </div>
           )}
 
-          {/* Visual Step-by-Step Route Map Component */}
-          <div className="rounded-2xl overflow-hidden border border-slate-200/80 shadow-sm">
-            <WayfindingMap
-              roomNumber={activeRoom}
-              doctorName={liveDoctor?.name || currentPatient.doctorName}
-              floor={currentPatient.floor}
-              block={currentPatient.opdBlock}
-              isEmergency={currentPatient.triageCategory === 'urgent_er'}
-              onShowToast={onShowToast}
-            />
-          </div>
         </div>
       )}
 

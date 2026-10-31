@@ -27,6 +27,7 @@ declare global {
 
 interface NearbyLabsModalProps {
   isOpen: boolean;
+  presentation?: 'modal' | 'page';
   onClose: () => void;
   booking: Patient;
   onShowToast?: (title: string, desc: string, type?: 'info' | 'success' | 'urgent') => void;
@@ -34,10 +35,12 @@ interface NearbyLabsModalProps {
 
 export const NearbyLabsModal: React.FC<NearbyLabsModalProps> = ({
   isOpen,
+  presentation = 'modal',
   onClose,
   booking,
   onShowToast,
 }) => {
+  const isPage = presentation === 'page';
   // Synchronous resolution of initial hospital data for 0ms instant loading
   const initialHospital = React.useMemo(() => {
     return (
@@ -504,8 +507,10 @@ export const NearbyLabsModal: React.FC<NearbyLabsModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-slate-50 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-2xl w-full max-w-5xl h-[92vh] max-h-[900px] flex flex-col overflow-hidden text-left">
+    <div className={isPage ? 'w-full animate-in fade-in duration-200' : 'fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-200'}>
+      <div className={isPage
+        ? 'bg-slate-50 border border-slate-200 shadow-sm w-full h-[calc(100vh-7rem)] min-h-[680px] flex flex-col overflow-hidden text-left'
+        : 'bg-slate-50 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-2xl w-full max-w-5xl h-[92vh] max-h-[900px] flex flex-col overflow-hidden text-left'}>
         {/* 1. TOP HEADER & PRIVACY BANNER */}
         <div className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3.5 flex items-center justify-between shrink-0 shadow-2xs">
           <div className="flex items-center gap-3">

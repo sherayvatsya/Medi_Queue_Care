@@ -1,14 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Activity,
-  MapPin,
-  Video,
-  Calendar,
-  FolderKanban,
   Search,
   Bell,
-  Sun,
-  Moon,
   ChevronDown,
   User,
   ShieldCheck,
@@ -16,9 +9,8 @@ import {
   Stethoscope,
 } from 'lucide-react';
 import { PatientUser, StaffUser, UserRole, StaffSection } from '../types';
-import { useTheme } from '../context/ThemeContext';
 
-export type PatientNavView = 'dashboard' | 'patient_pass' | 'teleconsult' | 'hospital_map' | 'appointments' | 'medical_file';
+export type PatientNavView = 'dashboard' | 'patient_pass' | 'teleconsult' | 'hospital_map' | 'appointments' | 'medical_file' | 'prescriptions' | 'reports' | 'profile_settings' | 'nearby_labs';
 
 interface HeaderProps {
   currentRole: UserRole;
@@ -57,7 +49,6 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAdminLogin,
   onSignOut,
 }) => {
-  const { theme, toggleTheme } = useTheme();
   const [showSearchModal, setShowSearchModal] = useState<boolean>(false);
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState<boolean>(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState<boolean>(false);
@@ -80,16 +71,8 @@ export const Header: React.FC<HeaderProps> = ({
   const displayName = isStaff ? staffUser?.name : (currentUser ? currentUser.name : 'Rajesh');
   const userInitial = displayName.charAt(0).toUpperCase();
 
-  const navItems = [
-    { id: 'dashboard' as const, label: 'Patient Portal', icon: Activity },
-    { id: 'hospital_map' as const, label: 'Find Hospital', icon: MapPin },
-    { id: 'teleconsult' as const, label: 'Tele-Consult', icon: Video },
-    { id: 'appointments' as const, label: 'My Appointments', icon: Calendar },
-    { id: 'medical_file' as const, label: 'Medical File', icon: FolderKanban },
-  ];
-
   return (
-    <header className="sticky top-0 z-40 bg-white/95 dark:bg-[#111827]/95 backdrop-blur-md border-b border-[#E5EDF5] dark:border-[#1E293B] shadow-xs px-4 sm:px-6 py-2.5 transition-colors duration-200 w-full box-border">
+    <header className="sticky top-0 z-40 bg-white/76 dark:bg-[#162927]/82 supports-[backdrop-filter]:bg-white/68 dark:supports-[backdrop-filter]:bg-[#162927]/76 backdrop-blur-xl border-b border-[#DCEBE3]/90 dark:border-[#284440] shadow-[0_4px_18px_rgba(0,107,103,0.045)] px-4 sm:px-6 py-2.5 transition-colors duration-200 w-full box-border">
       <div className="max-w-[1440px] mx-auto flex items-center justify-between gap-3">
         {/* LEFT: BRAND IDENTITY */}
         <div className="flex items-center gap-3 shrink-0">
@@ -98,19 +81,11 @@ export const Header: React.FC<HeaderProps> = ({
             className="flex items-center gap-2.5 cursor-pointer select-none group"
             title="Medi-Queue Home"
           >
-            {/* Logo Pulse Icon */}
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#087FC9] to-[#00A3FF] text-white flex items-center justify-center shadow-md shadow-[#087FC9]/25 transition-transform group-hover:scale-105">
-              <svg
-                className="w-6 h-6 stroke-current fill-none stroke-[2.5]"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M3 12h3l2.5-6 4 13 3-9 2.5 5 2-3h3"
-                />
-              </svg>
-            </div>
+            <img
+              src="/mediqueue-logo.png"
+              alt=""
+              className="h-11 w-11 object-contain transition-transform group-hover:scale-[1.02]"
+            />
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-heading font-extrabold text-lg sm:text-xl text-[#13213A] dark:text-white tracking-tight">
@@ -130,39 +105,7 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* CENTER NAVIGATION (Desktop SaaS Pills) */}
-        {!isStaff ? (
-          <nav className="hidden lg:flex items-center gap-1.5 p-1 rounded-2xl bg-[#F6F9FC] dark:bg-[#172033] border border-[#E5EDF5] dark:border-[#1E293B]">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = patientNavView === item.id;
-
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => {
-                    if (item.id === 'medical_file' && onOpenMedicalFile) {
-                      onOpenMedicalFile();
-                    } else {
-                      onPatientNavChange(item.id);
-                    }
-                  }}
-                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer ${
-                    isActive
-                      ? 'bg-white dark:bg-[#111827] text-[#087FC9] dark:text-[#38BDF8] font-bold shadow-xs border border-[#E5EDF5] dark:border-[#1E293B]'
-                      : 'text-[#64748B] dark:text-[#94A3B8] hover:text-[#13213A] dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-800/50'
-                  }`}
-                >
-                  <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-[#087FC9] dark:text-[#38BDF8]' : ''}`} />
-                  <span>{item.label}</span>
-                  {isActive && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#087FC9] dark:bg-[#38BDF8]"></span>
-                  )}
-                </button>
-              );
-            })}
-          </nav>
-        ) : (
+        {!isStaff ? <div className="flex-1" /> : (
           /* Staff Section Breadcrumb / Navigation */
           <div className="hidden md:flex items-center gap-2 text-xs font-semibold text-[#64748B] dark:text-[#94A3B8]">
             <span className="px-3 py-1 rounded-xl bg-[#EBF5FB] dark:bg-[#082F49] text-[#087FC9] dark:text-[#38BDF8] border border-[#BAE6FD] font-bold">
@@ -199,7 +142,7 @@ export const Header: React.FC<HeaderProps> = ({
                 if (onOpenDoctorLogin) onOpenDoctorLogin();
                 else window.location.hash = '#doctor-login';
               }}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/60 dark:hover:bg-teal-900/60 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/55 hover:bg-[#E8F8EF]/90 dark:bg-[#1B302D]/60 dark:hover:bg-[#23413B]/80 text-[#006B67] dark:text-[#66D4A5] border border-[#DCEBE3] dark:border-[#31534B] backdrop-blur-sm transition flex items-center gap-1.5 cursor-pointer shadow-[0_2px_8px_rgba(0,107,103,0.04)]"
             >
               <Stethoscope className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
               <span>Doctor Login</span>
@@ -210,7 +153,7 @@ export const Header: React.FC<HeaderProps> = ({
                 if (onOpenAdminLogin) onOpenAdminLogin();
                 else window.location.hash = '#admin-login';
               }}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/55 hover:bg-[#E8F8EF]/90 dark:bg-[#1B302D]/60 dark:hover:bg-[#23413B]/80 text-[#006B67] dark:text-[#66D4A5] border border-[#DCEBE3] dark:border-[#31534B] backdrop-blur-sm transition flex items-center gap-1.5 cursor-pointer shadow-[0_2px_8px_rgba(0,107,103,0.04)]"
             >
               <ShieldCheck className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
               <span>Admin Login</span>
@@ -224,7 +167,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             type="button"
             onClick={() => setShowSearchModal(!showSearchModal)}
-            className="w-9 h-9 rounded-xl border border-[#E5EDF5] dark:border-[#1E293B] bg-white dark:bg-[#111827] hover:bg-[#F6F9FC] dark:hover:bg-[#172033] text-[#64748B] dark:text-[#94A3B8] hover:text-[#13213A] dark:hover:text-white flex items-center justify-center transition cursor-pointer shadow-2xs"
+            className="w-9 h-9 rounded-xl border border-[#DCEBE3] dark:border-[#31534B] bg-white/55 dark:bg-[#1B302D]/60 backdrop-blur-sm hover:bg-[#E8F8EF]/85 dark:hover:bg-[#23413B]/80 text-[#647875] dark:text-[#A8BDB6] hover:text-[#006B67] dark:hover:text-white flex items-center justify-center transition cursor-pointer shadow-[0_2px_8px_rgba(0,107,103,0.04)]"
             title="Search Doctors, Labs, or OPD Services"
           >
             <Search className="w-4 h-4" />
@@ -235,7 +178,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={() => setShowNotificationsDropdown(!showNotificationsDropdown)}
-              className="w-9 h-9 rounded-xl border border-[#E5EDF5] dark:border-[#1E293B] bg-white dark:bg-[#111827] hover:bg-[#F6F9FC] dark:hover:bg-[#172033] text-[#64748B] dark:text-[#94A3B8] hover:text-[#13213A] dark:hover:text-white flex items-center justify-center transition cursor-pointer shadow-2xs relative"
+              className="w-9 h-9 rounded-xl border border-[#DCEBE3] dark:border-[#31534B] bg-white/55 dark:bg-[#1B302D]/60 backdrop-blur-sm hover:bg-[#E8F8EF]/85 dark:hover:bg-[#23413B]/80 text-[#647875] dark:text-[#A8BDB6] hover:text-[#006B67] dark:hover:text-white flex items-center justify-center transition cursor-pointer shadow-[0_2px_8px_rgba(0,107,103,0.04)] relative"
               title="Hospital Alerts & Queue Announcements"
             >
               <Bell className="w-4 h-4" />
@@ -294,7 +237,7 @@ export const Header: React.FC<HeaderProps> = ({
                   onOpenPatientAuth();
                 }
               }}
-              className="flex items-center gap-2 p-1 pl-1.5 pr-2 rounded-xl border border-[#E5EDF5] dark:border-[#1E293B] bg-white dark:bg-[#111827] hover:bg-[#F6F9FC] dark:hover:bg-[#172033] transition cursor-pointer shadow-2xs"
+              className="flex items-center gap-2 p-1 pl-1.5 pr-2 rounded-xl border border-[#DCEBE3] dark:border-[#31534B] bg-white/55 dark:bg-[#1B302D]/60 backdrop-blur-sm hover:bg-[#E8F8EF]/85 dark:hover:bg-[#23413B]/80 transition cursor-pointer shadow-[0_2px_8px_rgba(0,107,103,0.04)]"
             >
               <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-[#38BDF8] to-[#087FC9] text-white flex items-center justify-center font-bold text-xs shadow-xs">
                 {userInitial}
@@ -398,15 +341,6 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </div>
 
-          {/* Theme Toggle Button */}
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className="w-9 h-9 rounded-xl border border-[#E5EDF5] dark:border-[#1E293B] bg-white dark:bg-[#111827] hover:bg-[#F6F9FC] dark:hover:bg-[#172033] text-[#64748B] dark:text-amber-400 hover:text-amber-500 flex items-center justify-center transition cursor-pointer shadow-2xs"
-            title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
-          >
-            {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          </button>
         </div>
       </div>
 

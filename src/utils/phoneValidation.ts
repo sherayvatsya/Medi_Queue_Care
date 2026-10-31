@@ -99,3 +99,4 @@ export function validatePhoneNumber(raw: string, isRequired: boolean = true): Ph
     hasLengthError: false,
   };
 }
+

@@ -6,6 +6,7 @@ import { AlertCircle, CheckCircle2 } from 'lucide-react';
 
 interface EditProfileModalProps {
   isOpen: boolean;
+  presentation?: 'modal' | 'page';
   onClose: () => void;
   currentUser: PatientUser | null;
   onSaveProfile: (updatedProfile: PatientUser) => void;
@@ -36,11 +37,13 @@ const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
 export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   isOpen,
+  presentation = 'modal',
   onClose,
   currentUser,
   onSaveProfile,
   onShowToast,
 }) => {
+  const isPage = presentation === 'page';
   const [name, setName] = useState<string>('');
   const [age, setAge] = useState<number>(35);
   const [gender, setGender] = useState<'Male' | 'Female' | 'Other'>('Male');
@@ -172,16 +175,18 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-xs">
-      <div className="bg-white rounded-3xl border border-slate-200 p-5 sm:p-7 max-w-xl w-full shadow-2xl animate-in zoom-in-95 duration-200 text-slate-700 max-h-[90vh] overflow-y-auto box-border">
+    <div className={isPage ? 'w-full min-h-[calc(100vh-7rem)] animate-in fade-in duration-200' : 'fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-xs'}>
+      <div className={isPage
+        ? 'bg-white rounded-2xl border border-sky-100 p-4 sm:p-6 lg:p-7 w-full mx-auto shadow-sm text-slate-700 box-border'
+        : 'bg-white rounded-3xl border border-slate-200 p-5 sm:p-7 max-w-xl w-full shadow-2xl animate-in zoom-in-95 duration-200 text-slate-700 max-h-[90vh] overflow-y-auto box-border'}>
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-200">
+        <div className={`flex items-center justify-between gap-4 pb-4 ${isPage ? 'border-b border-sky-100' : 'border-b border-slate-200'}`}>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-sky-100 text-sky-600 flex items-center justify-center text-lg font-bold shadow-xs">
+            <div className={`${isPage ? 'w-12 h-12' : 'w-10 h-10'} shrink-0 rounded-2xl bg-sky-100 text-sky-600 flex items-center justify-center text-lg font-bold shadow-xs`}>
               <i className="fa-solid fa-user-pen"></i>
             </div>
             <div>
-              <h3 className="font-extrabold text-base sm:text-lg text-slate-900 leading-tight">
+              <h3 className={`font-extrabold text-slate-900 leading-tight ${isPage ? 'text-lg sm:text-xl' : 'text-base sm:text-lg'}`}>
                 Edit Patient Personal Details
               </h3>
               <div className="flex items-center gap-2 mt-0.5">
@@ -202,13 +207,16 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
         </div>
 
         {/* Edit Form */}
-        <form onSubmit={handleSubmit} className="py-4 space-y-4 text-xs">
+        <form onSubmit={handleSubmit} className={`${isPage ? 'py-4 sm:py-5 space-y-3.5 sm:space-y-4' : 'py-4 space-y-4'} text-xs`}>
           {/* Basic Demographics */}
-          <div className="space-y-3 bg-slate-50/80 p-4 rounded-2xl border border-slate-200">
-            <h4 className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5 uppercase tracking-wider">
-              <i className="fa-solid fa-id-badge text-sky-500"></i>
-              Primary Demographics
-            </h4>
+          <div className={`space-y-3 p-3.5 sm:p-4 rounded-2xl border ${isPage ? 'bg-sky-50/40 border-sky-100' : 'bg-slate-50/80 border-slate-200'}`}>
+            <div>
+              <h4 className="font-extrabold text-slate-900 text-sm flex items-center gap-1.5">
+                <i className="fa-solid fa-id-badge text-sky-500"></i>
+                Primary Demographics
+              </h4>
+              <p className="mt-0.5 pl-5 text-[11px] text-slate-500">Basic information about the patient.</p>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
@@ -333,11 +341,14 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
           </div>
 
           {/* Emergency Contact */}
-          <div className="space-y-3 bg-amber-50/50 p-4 rounded-2xl border border-amber-200">
-            <h4 className="font-extrabold text-amber-900 text-xs flex items-center gap-1.5 uppercase tracking-wider">
-              <i className="fa-solid fa-phone-volume text-amber-600"></i>
-              Emergency Next-of-Kin Contact
-            </h4>
+          <div className="space-y-3 bg-amber-50/50 p-3.5 sm:p-4 rounded-2xl border border-amber-200">
+            <div>
+              <h4 className="font-extrabold text-amber-900 text-sm flex items-center gap-1.5">
+                <i className="fa-solid fa-phone-volume text-amber-600"></i>
+                Emergency Next-of-Kin Contact
+              </h4>
+              <p className="mt-0.5 pl-5 text-[11px] text-amber-800/75">Person to contact in case of emergency.</p>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block font-bold text-slate-800 mb-1">
@@ -399,12 +410,15 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
           </div>
 
           {/* Allergies & Drug Sensitivities */}
-          <div className="space-y-3 bg-rose-50/60 p-4 rounded-2xl border border-rose-200">
+          <div className="space-y-3 bg-rose-50/60 p-3.5 sm:p-4 rounded-2xl border border-rose-200">
             <div className="flex items-center justify-between">
-              <h4 className="font-extrabold text-rose-900 text-xs flex items-center gap-1.5 uppercase tracking-wider">
-                <i className="fa-solid fa-shield-halved text-rose-600"></i>
-                Known Drug & Food Allergies
-              </h4>
+              <div>
+                <h4 className="font-extrabold text-rose-900 text-sm flex items-center gap-1.5">
+                  <i className="fa-solid fa-shield-halved text-rose-600"></i>
+                  Known Drug & Food Allergies
+                </h4>
+                <p className="mt-0.5 pl-5 text-[11px] text-rose-700/75">Select common allergies or add a custom entry.</p>
+              </div>
               <span className="text-[10px] text-rose-700 font-bold bg-rose-100 px-2 py-0.5 rounded-full">
                 High Clinical Safety Priority
               </span>
@@ -474,11 +488,14 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
           </div>
 
           {/* Chronic Conditions */}
-          <div className="space-y-3 bg-slate-50/80 p-4 rounded-2xl border border-slate-200">
-            <h4 className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5 uppercase tracking-wider">
-              <i className="fa-solid fa-notes-medical text-sky-500"></i>
-              Chronic Health Conditions & History
-            </h4>
+          <div className="space-y-3 bg-sky-50/40 p-3.5 sm:p-4 rounded-2xl border border-sky-100">
+            <div>
+              <h4 className="font-extrabold text-slate-900 text-sm flex items-center gap-1.5">
+                <i className="fa-solid fa-notes-medical text-sky-500"></i>
+                Chronic Health Conditions & History
+              </h4>
+              <p className="mt-0.5 pl-5 text-[11px] text-slate-500">Select conditions to keep your care team informed.</p>
+            </div>
 
             {/* Quick chips */}
             <div className="flex flex-wrap gap-1.5">
@@ -544,7 +561,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
           </div>
 
           {/* Modal Footer Actions */}
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
+          <div className={`flex items-center justify-end gap-3 pt-3 ${isPage ? 'border-t border-sky-100' : 'border-t border-slate-200'}`}>
             <button
               type="button"
               onClick={onClose}

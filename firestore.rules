@@ -6,28 +6,32 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Check if the user document or staff document assigns role
+    function staffProfilePath() {
+      return /databases/$(database)/documents/staff/$(request.auth.uid);
+    }
+
     function isStaffMember() {
-      return isAuthenticated() && (
-        exists(/databases/$(database)/documents/staff/$(request.auth.uid))
-      );
+      return isAuthenticated()
+        && exists(staffProfilePath())
+        && get(staffProfilePath()).data.role in ['staff', 'doctor', 'admin'];
     }
 
     function isAdmin() {
-      return isAuthenticated() && (
-        get(/databases/$(database)/documents/staff/$(request.auth.uid)).data.role == 'admin'
-      );
+      return isAuthenticated()
+        && exists(staffProfilePath())
+        && get(staffProfilePath()).data.role == 'admin';
     }
 
     function isDoctor() {
-      return isAuthenticated() && (
-        get(/databases/$(database)/documents/staff/$(request.auth.uid)).data.role == 'doctor'
-      );
+      return isAuthenticated()
+        && exists(staffProfilePath())
+        && get(staffProfilePath()).data.role == 'doctor';
     }
 
-    // Staff & Doctor Directory: Writable ONLY by authorized admins; prevents frontend role spoofing
+    // Staff profiles are private; users may read their own profile and admins may manage the directory.
     match /staff/{staffId} {
-      allow read: if true;
+      allow get: if isAuthenticated() && (request.auth.uid == staffId || isAdmin());
+      allow list: if isAdmin();
       allow write: if isAdmin();
     }
 
@@ -80,10 +84,9 @@ service cloud.firestore {
       allow write: if true;
     }
 
-    // Fallback safe default
+    // Deny access to collections without an explicit rule above.
     match /{document=**} {
-      allow read: if true;
-      allow write: if isStaffMember() || isAdmin() || isDoctor();
+      allow read, write: if false;
     }
   }
 }

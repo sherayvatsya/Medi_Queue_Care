@@ -3,6 +3,7 @@ import { Doctor, Patient, ICMRProtocol, PatientUser, StaffUser, UserRole, StaffS
 import { INITIAL_DOCTORS, INITIAL_PATIENTS, INITIAL_PROTOCOLS, INITIAL_PATIENT_USERS } from './data/mockData';
 import { Header, PatientNavView } from './components/Header';
 import { PatientPortal } from './components/PatientPortal';
+import { HospitalDiscovery } from './components/HospitalDiscovery';
 import { PatientAuth } from './components/PatientAuth';
 import { StaffDashboard } from './components/StaffDashboard';
 import { TeleconsultModule } from './components/TeleconsultModule';
@@ -55,18 +56,26 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<PatientUser | null>(() => {
     try {
       const savedPatient = localStorage.getItem('mediqueue_patient_user');
-      return savedPatient ? JSON.parse(savedPatient) : INITIAL_PATIENT_USERS[0];
+      return savedPatient ? JSON.parse(savedPatient) : null;
     } catch {
-      return INITIAL_PATIENT_USERS[0];
+      return null;
     }
   });
+  const [showHospitalDiscovery, setShowHospitalDiscovery] = useState(() =>
+    Boolean(localStorage.getItem('mediqueue_patient_user')) && localStorage.getItem('mediqueue_discovery_open') === 'true'
+  );
 
   // 2. Navigation State for Patient & Staff
   const [patientNavView, setPatientNavView] = useState<PatientNavView>(() => {
     const hash = window.location.hash.replace('#', '').toLowerCase();
     if (hash === 'teleconsult') return 'teleconsult';
+    if (hash === 'nearby-labs') return 'nearby_labs';
     if (hash === 'hospital-map' || hash === 'map' || hash === 'hospitals') return 'hospital_map';
     if (hash === 'appointments') return 'appointments';
+    if (hash === 'prescriptions') return 'prescriptions';
+    if (hash === 'reports') return 'reports';
+    if (hash === 'profile-settings') return 'profile_settings';
+    if (hash === 'medical-file') return 'medical_file';
     if (hash === 'patient-pass' || hash === 'patient' || hash === 'pass') return 'patient_pass';
     return 'dashboard';
   });
@@ -96,6 +105,10 @@ export default function App() {
   const [activeSidebarTab, setActiveSidebarTab] = useState<SidebarTab>(() => {
     const hash = window.location.hash.replace('#', '').toLowerCase();
     if (hash === 'appointments') return 'appointments';
+    if (hash === 'prescriptions') return 'prescriptions';
+    if (hash === 'reports') return 'reports';
+    if (hash === 'profile-settings') return 'profile_settings';
+    if (hash === 'nearby-labs') return 'nearby_labs';
     if (hash === 'patient-pass' || hash === 'patient' || hash === 'pass') return 'patient_pass';
     if (hash === 'teleconsult') return 'teleconsult';
     if (hash === 'medical-file') return 'medical_file';
@@ -103,11 +116,9 @@ export default function App() {
   });
   const [showSupportModal, setShowSupportModal] = useState<boolean>(false);
   const [showAppMedicalFileModal, setShowAppMedicalFileModal] = useState<boolean>(() => {
-    const hash = window.location.hash.replace('#', '').toLowerCase();
-    return hash === 'medical-file';
+    return false;
   });
   const [medicalFileInitialTab, setMedicalFileInitialTab] = useState<'overview' | 'history' | 'allergies' | 'medications' | 'prescriptions' | 'reports'>('overview');
-  const [showAppNearbyLabsModal, setShowAppNearbyLabsModal] = useState<boolean>(false);
   const [isMobileFrameActive, setIsMobileFrameActive] = useState<boolean>(false);
   const [showGlobalAuthModal, setShowGlobalAuthModal] = useState<boolean>(false);
   const [showPatientProfileModal, setShowPatientProfileModal] = useState<boolean>(false);
@@ -122,11 +133,11 @@ export default function App() {
     try {
       const savedPatient = localStorage.getItem('mediqueue_patient_user');
       if (savedPatient) {
-        return localStorage.getItem('mediqueue_active_patient_id') || 'pat-3';
+        return localStorage.getItem('mediqueue_active_patient_id') || '';
       }
-      return 'pat-3';
+      return '';
     } catch {
-      return 'pat-3';
+      return '';
     }
   });
 
@@ -167,6 +178,10 @@ export default function App() {
       hospital_map: 'hospital-map',
       appointments: 'appointments',
       medical_file: 'medical-file',
+      prescriptions: 'prescriptions',
+      reports: 'reports',
+      profile_settings: 'profile-settings',
+      nearby_labs: 'nearby-labs',
     };
     updateUrlHash(hashMap[nav] || 'patient-pass');
   };
@@ -252,6 +267,20 @@ export default function App() {
         return;
       }
 
+      if (userRole === 'patient' && (hash === 'prescriptions' || hash === 'reports')) {
+        setIsHospitalLoginOpen(false);
+        setPatientNavView(hash);
+        setActiveSidebarTab(hash);
+        return;
+      }
+
+      if (hash === 'profile-settings') {
+        setIsHospitalLoginOpen(false);
+        setPatientNavView('profile_settings');
+        setActiveSidebarTab('profile_settings');
+        return;
+      }
+
       if (hash === 'patient-pass' || hash === 'patient' || hash === 'pass') {
         setIsHospitalLoginOpen(false);
         setPatientNavView('patient_pass');
@@ -261,9 +290,9 @@ export default function App() {
 
       if (hash === 'medical-file') {
         setIsHospitalLoginOpen(false);
+        setPatientNavView('medical_file');
         setActiveSidebarTab('medical_file');
         setMedicalFileInitialTab('overview');
-        setShowAppMedicalFileModal(true);
         return;
       }
 
@@ -356,9 +385,14 @@ export default function App() {
           const snap = await getDoc(userDocRef);
           if (snap.exists()) {
             const data = snap.data() as PatientUser;
+            setShowHospitalDiscovery(localStorage.getItem('mediqueue_discovery_open') === 'true');
             setCurrentUser(data);
             localStorage.setItem('mediqueue_patient_user', JSON.stringify(data));
           } else {
+            // Phone OTP may authenticate a number that has no patient profile yet.
+            // Let the phone sign-in flow verify the registered profile before creating anything.
+            if (fbUser.providerData.some((provider) => provider.providerId === 'phone')) return;
+
             const newUser: PatientUser = {
               id: fbUser.uid,
               uhid: `SJMC-${new Date().getFullYear()}-DEL-${Math.floor(10000 + Math.random() * 90000)}P`,
@@ -377,6 +411,7 @@ export default function App() {
               hasHealthPass: true,
             };
             await setDoc(userDocRef, newUser);
+            setShowHospitalDiscovery(localStorage.getItem('mediqueue_discovery_open') === 'true');
             setCurrentUser(newUser);
             localStorage.setItem('mediqueue_patient_user', JSON.stringify(newUser));
           }
@@ -388,6 +423,7 @@ export default function App() {
 
     return () => unsubscribeAuth();
   }, []);
+
 
   // 5. Real-time Firestore Listeners for Patients & Doctors
   useEffect(() => {
@@ -442,7 +478,7 @@ export default function App() {
   }, []);
 
   // Find active patient object strictly belonging to currentUser or the active session
-  const currentPatient = currentUser
+  const activePatientRecord = currentUser
     ? (currentPatientId ? patients.find((p) => p.id === currentPatientId) : null) ||
       patients.find((p) => p.userId === currentUser.id) ||
       patients.find(
@@ -459,6 +495,29 @@ export default function App() {
       ) ||
       null
     : null;
+  const currentPatient = activePatientRecord
+    ? (() => {
+        const tokenPosition = activePatientRecord.tokenNumber.match(/^[A-Z]-(\d+)-\d+$/)?.[1];
+        const isLegacyDiscoveryPosition = activePatientRecord.status === 'waiting'
+          && Boolean(tokenPosition)
+          && activePatientRecord.queuePosition === Number(tokenPosition);
+        const patientsAhead = isLegacyDiscoveryPosition
+          ? Math.max(0, Number(tokenPosition) - 1)
+          : activePatientRecord.queuePosition;
+        const doctor = doctors.find((item) => item.id === activePatientRecord.doctorId);
+        const seededDuration = INITIAL_DOCTORS.find((item) => item.id === activePatientRecord.doctorId)?.avgConsultationTimeMin || 0;
+        const averageDuration = Number(doctor?.avgConsultationTimeMin) > 0
+          ? Number(doctor?.avgConsultationTimeMin)
+          : seededDuration;
+        const liveEstimate = patientsAhead * averageDuration + (doctor?.delayMinutes || 0);
+
+        return {
+          ...activePatientRecord,
+          queuePosition: patientsAhead,
+          estimatedWaitMinutes: Math.max(activePatientRecord.estimatedWaitMinutes || 0, liveEstimate),
+        };
+      })()
+    : null;
 
   // Active Hospital Name strictly from active patient context or staff user
   const activeHospitalName =
@@ -469,8 +528,11 @@ export default function App() {
       : null;
 
   // Handle Patient Login
-  const handleUserLogin = (user: PatientUser, redirectNavView?: 'dashboard' | 'patient_pass' | 'teleconsult') => {
+  const handleUserLogin = (user: PatientUser, redirectNavView?: 'dashboard' | 'patient_pass' | 'teleconsult', openDiscoveryAfterRegistration = false) => {
     setCurrentUser(user);
+    const shouldOpenDiscovery = openDiscoveryAfterRegistration;
+    setShowHospitalDiscovery(shouldOpenDiscovery);
+    localStorage.setItem('mediqueue_discovery_open', String(shouldOpenDiscovery));
     setUserRole('patient');
     localStorage.setItem('mediqueue_role', 'patient');
     localStorage.setItem('mediqueue_patient_user', JSON.stringify(user));
@@ -491,7 +553,7 @@ export default function App() {
     setIsHospitalLoginOpen(false);
     const targetNav = redirectNavView || patientNavView || 'dashboard';
     setPatientNavView(targetNav);
-    updateUrlHash(targetNav === 'teleconsult' ? 'teleconsult' : targetNav === 'patient_pass' ? 'patient-pass' : 'dashboard');
+    updateUrlHash(shouldOpenDiscovery ? 'hospital-discovery' : targetNav === 'teleconsult' ? 'teleconsult' : targetNav === 'patient_pass' ? 'patient-pass' : 'dashboard');
   };
 
   // Handle Hospital Staff / Doctor / Admin Login
@@ -535,6 +597,8 @@ export default function App() {
         console.warn(e);
       }
       setCurrentUser(null);
+      setShowHospitalDiscovery(false);
+      localStorage.removeItem('mediqueue_discovery_open');
       setCurrentPatientId('');
       localStorage.removeItem('mediqueue_patient_user');
       localStorage.removeItem('mediqueue_role');
@@ -783,18 +847,18 @@ export default function App() {
       handlePatientNavChange('teleconsult');
     } else if (tab === 'medical_file') {
       setMedicalFileInitialTab('overview');
-      setShowAppMedicalFileModal(true);
+      handlePatientNavChange('medical_file');
     } else if (tab === 'prescriptions') {
       setMedicalFileInitialTab('prescriptions');
-      setShowAppMedicalFileModal(true);
+      handlePatientNavChange('prescriptions');
     } else if (tab === 'reports') {
       setMedicalFileInitialTab('reports');
-      setShowAppMedicalFileModal(true);
+      handlePatientNavChange('reports');
     } else if (tab === 'nearby_labs') {
-      setShowAppNearbyLabsModal(true);
+      handlePatientNavChange('nearby_labs');
       playHospitalChime();
     } else if (tab === 'profile_settings') {
-      setShowPatientProfileModal(true);
+      handlePatientNavChange('profile_settings');
     }
   };
 
@@ -1025,9 +1089,8 @@ export default function App() {
       <div className="min-h-screen bg-[#F6FAFE] dark:bg-[#0B1220] text-[#14213D] dark:text-[#F1F5F9] flex flex-col transition-colors duration-200">
         <PatientAuth
           onLoginSuccess={handleUserLogin}
+          onRegistrationSuccess={(user) => handleUserLogin(user, 'dashboard', true)}
           onShowToast={showToast}
-          onBackToHome={() => handleUserLogin(INITIAL_PATIENT_USERS[0])}
-          onOpenSupportModal={() => setShowSupportModal(true)}
           onOpenHospitalStaffLogin={() => {
             setIsHospitalLoginOpen(true);
             updateUrlHash('hospital-login');
@@ -1091,6 +1154,42 @@ export default function App() {
     );
   }
 
+  // Hospital discovery is a dedicated post-auth page, separate from the patient dashboard.
+  if (showHospitalDiscovery && currentUser && userRole === 'patient') {
+    return (
+      <div className="min-h-screen bg-[#F4FAF6] text-[#14213D]">
+        <header className="border-b border-emerald-100 bg-white/95 px-4 py-3 sm:px-8">
+          <div className="mx-auto flex max-w-7xl items-center gap-3">
+            <div className="flex items-center gap-3">
+              <img src="/mediqueue-logo.png" alt="Medi Queue" className="h-12 w-12 rounded-xl object-cover" />
+              <div><p className="font-extrabold leading-tight">Medi Queue</p><p className="text-xs text-slate-500">Find care that fits your needs</p></div>
+            </div>
+          </div>
+        </header>
+        <HospitalDiscovery
+          user={currentUser}
+          doctors={doctors}
+          patients={patients}
+          databaseConnected={isDbConnected}
+          onConfirm={(patient) => {
+            handleGenerateToken(patient);
+            setShowHospitalDiscovery(false);
+            localStorage.setItem('mediqueue_discovery_open', 'false');
+            setPatientNavView('dashboard');
+            updateUrlHash('dashboard');
+          }}
+          onShowToast={showToast}
+        />
+        {toastMessage && (
+          <div className="fixed bottom-4 right-4 z-50 max-w-sm rounded-xl border border-slate-200 bg-white p-4 text-sm shadow-xl">
+            <p className="font-bold">{toastMessage.title}</p>
+            <p className="mt-1 text-slate-600">{toastMessage.description}</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#F6F9FC] dark:bg-[#0B1220] text-[#13213A] dark:text-[#F1F5F9] flex flex-col selection:bg-[#087FC9] selection:text-white box-border overflow-x-hidden transition-colors duration-200">
       {/* Top Header - Strictly Role-Based Navigation matching Stitch aesthetic */}
@@ -1100,16 +1199,9 @@ export default function App() {
         onPatientNavChange={(nav) => {
           if (nav === 'medical_file') {
             setMedicalFileInitialTab('overview');
-            setShowAppMedicalFileModal(true);
-            setActiveSidebarTab('medical_file');
-            updateUrlHash('medical-file');
-            return;
           }
           handlePatientNavChange(nav);
-          if (nav === 'dashboard') setActiveSidebarTab('dashboard');
-          else if (nav === 'patient_pass') setActiveSidebarTab('patient_pass');
-          else if (nav === 'teleconsult') setActiveSidebarTab('teleconsult');
-          else if (nav === 'appointments') setActiveSidebarTab('appointments');
+          if (nav !== 'hospital_map') setActiveSidebarTab(nav as SidebarTab);
         }}
         activeHospitalName={activeHospitalName}
         activeStaffSection={activeStaffSection}
@@ -1120,9 +1212,8 @@ export default function App() {
         onOpenPatientProfile={() => setShowPatientProfileModal(true)}
         onOpenMedicalFile={() => {
           setMedicalFileInitialTab('overview');
-          setShowAppMedicalFileModal(true);
           setActiveSidebarTab('medical_file');
-          updateUrlHash('medical-file');
+          handlePatientNavChange('medical_file');
         }}
         onOpenPatientAuth={() => setShowGlobalAuthModal(true)}
         onOpenHospitalLogin={() => {
@@ -1235,6 +1326,38 @@ export default function App() {
                   onRequestTeleconsult={() => handlePatientNavChange('teleconsult')}
                   onShowToast={showToast}
                 />
+              ) : patientNavView === 'medical_file' || patientNavView === 'prescriptions' || patientNavView === 'reports' ? (
+                <MedicalFileModal
+                  isOpen
+                  presentation="page"
+                  onClose={() => {
+                    setActiveSidebarTab('dashboard');
+                    handlePatientNavChange('dashboard');
+                  }}
+                  currentUser={currentUser}
+                  initialTab={patientNavView === 'prescriptions' ? 'prescriptions' : patientNavView === 'reports' ? 'reports' : 'overview'}
+                  onShowToast={showToast}
+                />
+              ) : patientNavView === 'profile_settings' ? (
+                currentUser ? (
+                  <EditProfileModal
+                    isOpen
+                    presentation="page"
+                    onClose={() => {
+                      setActiveSidebarTab('dashboard');
+                      handlePatientNavChange('dashboard');
+                    }}
+                    currentUser={currentUser}
+                    onSaveProfile={handleUpdateUserProfile}
+                    onShowToast={showToast}
+                  />
+                ) : (
+                  <section className="mx-auto max-w-2xl rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+                    <h2 className="text-xl font-bold text-slate-900">Sign in to manage your profile</h2>
+                    <p className="mt-2 text-sm text-slate-600">Your personal and emergency contact details will appear here after sign in.</p>
+                    <button type="button" onClick={() => setShowGlobalAuthModal(true)} className="mt-5 rounded-xl bg-sky-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-sky-700">Sign in</button>
+                  </section>
+                )
               ) : patientNavView === 'teleconsult' ? (
                 <TeleconsultModule
                   doctors={doctors}
@@ -1243,6 +1366,17 @@ export default function App() {
                   onShowToast={showToast}
                   onReturnToOPD={() => handlePatientNavChange('patient_pass')}
                   onBookInPersonInstead={() => handlePatientNavChange('patient_pass')}
+                />
+              ) : patientNavView === 'nearby_labs' ? (
+                <NearbyLabsModal
+                  isOpen
+                  presentation="page"
+                  onClose={() => {
+                    setActiveSidebarTab('dashboard');
+                    handlePatientNavChange('dashboard');
+                  }}
+                  booking={currentPatient || patients[0] || INITIAL_PATIENTS[0]}
+                  onShowToast={showToast}
                 />
               ) : (
                 <HospitalLeafletMap
@@ -1267,10 +1401,7 @@ export default function App() {
             if (view === 'dashboard') setActiveSidebarTab('dashboard');
             else if (view === 'patient_pass') setActiveSidebarTab('patient_pass');
             else if (view === 'teleconsult') setActiveSidebarTab('teleconsult');
-          }}
-          onOpenLabs={() => {
-            setShowAppNearbyLabsModal(true);
-            playHospitalChime();
+            else if (view === 'nearby_labs') setActiveSidebarTab('nearby_labs');
           }}
           onOpenProfile={() => setShowPatientProfileModal(true)}
           activeTokenNumber={currentPatient?.tokenNumber}
@@ -1292,16 +1423,6 @@ export default function App() {
         initialTab={medicalFileInitialTab}
         onShowToast={showToast}
       />
-
-      {/* Application Level Nearby Labs Modal */}
-      {(currentPatient || patients[0]) && (
-        <NearbyLabsModal
-          isOpen={showAppNearbyLabsModal}
-          onClose={() => setShowAppNearbyLabsModal(false)}
-          booking={currentPatient || patients[0]}
-          onShowToast={showToast}
-        />
-      )}
 
       {/* Real-time Toast Notifications */}
       {toastMessage && (

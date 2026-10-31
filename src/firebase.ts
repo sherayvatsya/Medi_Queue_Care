@@ -34,6 +34,7 @@ const app = getApps().length > 0 ? getApp() : initializeApp(config);
 
 // Initialize Firebase Auth
 export const auth = getAuth(app);
+export const firebaseProjectId = app.options.projectId || 'unknown';
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
@@ -268,25 +269,32 @@ export async function authenticateStaffWithRole(
       };
     }
 
-    const requiredFields = ['name', 'email', 'department', 'staffId', 'hospitalName'];
-    if (requiredFields.some((field) => typeof staffData[field] !== 'string' || !staffData[field].trim())) {
+    const profileEmail = typeof staffData.email === 'string' ? staffData.email.trim() : '';
+    if (profileEmail && profileEmail.toLowerCase() !== cleanEmail) {
       await fbSignOut(auth);
       return {
         success: false,
-        error: 'The staff profile is incomplete. Contact your hospital administrator.',
+        error: 'The staff profile email does not match the authenticated account.',
       };
     }
+
+    const profileString = (value: unknown, fallback: string): string =>
+      typeof value === 'string' && value.trim() ? value.trim() : fallback;
+    const authenticatedEmail = credential.user.email || cleanEmail;
 
     return {
       success: true,
       user: {
         id: credential.user.uid,
-        name: staffData.name,
-        email: staffData.email,
+        name: profileString(staffData.name, credential.user.displayName || authenticatedEmail),
+        email: authenticatedEmail,
         role,
-        department: staffData.department,
-        staffId: staffData.staffId,
-        hospitalName: staffData.hospitalName,
+        department: profileString(
+          staffData.department,
+          role === 'admin' ? 'Hospital Administration' : 'Hospital Staff'
+        ),
+        staffId: profileString(staffData.staffId ?? staffData.staffid, credential.user.uid),
+        hospitalName: profileString(staffData.hospitalName, 'Hospital'),
         avatarUrl: typeof staffData.avatarUrl === 'string' ? staffData.avatarUrl : undefined,
       },
     };
